@@ -1,0 +1,208 @@
+# Paper spec — written at intake, before any build. Every equation, parameter,
+# protocol detail and figure panel the replication needs, each stated (with its
+# section) or missing. `pawtrace playbook intake` explains how to fill it.
+#
+# Scope: what Fig 4a (training beta power vs step, 45 Hz model) depends on.
+# Source: rl-adaptive-dbs docs/controllers/ddpg/replication.md, docs/figures/mehregan/4a.md,
+# scripts/figures/papers/mehregan/paper_protocol.py, artifacts/figures/papers/mehregan/4a/manifest.json.
+paper:
+  id: mehregan
+  title: "Enhancing Adaptive Deep Brain Stimulation via Efficient Reinforcement Learning"
+  authors: []                # only "Mehregan et al." is in the docs; full author list not recorded
+  year: null                 # not stated in the docs
+  doi: ""                    # not stated in the docs
+  version: ""                # which version you read (preprint, published, erratum) — not stated in the docs
+
+# Code-use policy, set now — not mid-project.
+policy:
+  when_silent: [authors-code, convention, author-question, deviation]   # preference order when the paper is silent
+  authors_code:
+    url: "https://github.com/howyoubinh/CL-DBS-RL"   # name from the brief; host inferred, not in the docs
+    license: unknown
+    use: allowed             # allowed | reference-only | off-limits
+  off_limits: ["Fleming 2020 GPL source"]   # sources nobody may open (e.g. GPL code we rebuild from its paper)
+
+# Item kinds: equation | parameter | protocol | architecture | data | panel | claim | foundation | other
+# Item status: stated | missing | ambiguous | contradicted
+items:
+  - id: proto.training_schedule
+    kind: protocol           # equation | parameter | protocol | architecture | data | panel | claim | foundation | other
+    text: "Training runs 10 episodes of 30 steps each: 300 steps on one 45 Hz model."
+    section: "§IV.A.1"
+    status: stated           # stated | missing | ambiguous | contradicted
+    value: "10 episodes x 30 steps (300 steps)"
+
+  - id: proto.step_length
+    kind: protocol
+    text: "Each RL step is 2 s of simulated time (Alg. 1 step of duration l)."
+    section: "§III.B, §IV.A.1, Alg. 1"   # paper_protocol.py groups these sections over its whole stated list; per-item section not given
+    status: stated
+    value: "2 s"
+
+  - id: proto.plant_dt
+    kind: protocol
+    text: "Plant integration step of 0.02 ms."
+    section: "§III.B, §IV.A.1, Alg. 1"   # same grouped sections as proto.step_length
+    status: stated
+    value: "0.02 ms"
+
+  - id: proto.init_policy
+    kind: protocol
+    text: "The action space is initialized using regular pulses at the 45 Hz mean rate."
+    section: "§I, §IV.A.1–2"
+    status: stated
+    value: "regular pulses, 45 Hz mean"
+
+  - id: proto.update_frequency
+    kind: protocol
+    text: "Alg. 1 line 15 says 'for update frequency do' inside the per-step loop: the number of minibatch updates per environment step is ambiguous (literal reading: one update per step)."
+    section: "Alg. 1 line 15"
+    status: ambiguous
+    value: null
+
+  - id: proto.plant_carry
+    kind: protocol
+    text: "Plant state carry-over across the 2 s steps of an episode. Alg. 1 steps are sequential, but no explicit carry rule is given."
+    section: "Alg. 1"
+    status: missing
+    value: null
+
+  - id: eq.critic_target
+    kind: equation
+    text: "Bootstrap target: Q_target <- R + gamma (1 - dw) Q_target(s', mu_target(s')), where mu_target(s') is the target actor's logits."
+    section: "Eq. (3)"
+    status: stated
+    value: null
+
+  - id: eq.critic_loss
+    kind: equation
+    text: "Critic loss: MSE between Q_target and Q(s, a_logit), so the critic scores the stored actor logits."
+    section: "Eq. (4)"
+    status: stated
+    value: null
+
+  - id: eq.actor_loss
+    kind: equation
+    text: "Actor maximizes J_Actor = mean over the batch of Q(s, a_logit(t)), i.e. Q(s, mu(s)). The critic is frozen during the actor step."
+    section: "Eq. (5); Alg. 1"
+    status: stated
+    value: null
+
+  - id: eq.soft_update
+    kind: equation
+    text: "After both optimizer steps, Polyak-average both targets: theta_target <- tau theta + (1 - tau) theta_target."
+    section: "Eqs. (6)–(7)"
+    status: stated
+    value: null
+
+  - id: eq.reward
+    kind: equation
+    text: "Instantaneous reward R from the averaged P_beta/1000 signal s, with beta_t = 0.35. As printed, the below-threshold branch of Eq. (8) is negative, but the prose and Fig. 3c say positive."
+    section: "Eq. (8); Fig. 3c"
+    status: ambiguous
+    value: null
+
+  - id: hp.actor_lr
+    kind: parameter
+    text: "Actor learning rate (Adam)."
+    section: "§IV.A.1"
+    status: stated
+    value: 0.0005
+
+  - id: hp.critic_lr
+    kind: parameter
+    text: "Critic learning rate (Adam)."
+    section: "§IV.A.1"
+    status: stated
+    value: 0.001
+
+  - id: hp.buffer
+    kind: parameter
+    text: "Replay buffer capacity, in transitions."
+    section: "§IV.A.1"
+    status: stated
+    value: 8192
+
+  - id: hp.batch
+    kind: parameter
+    text: "Minibatch size."
+    section: "§IV.A.1"
+    status: stated
+    value: 32
+
+  - id: hp.gamma
+    kind: parameter
+    text: "Discount gamma (Eq. 3). Algorithm 1 gives no numeric value."
+    section: "§IV.A.1"
+    status: missing
+    value: null
+
+  - id: hp.tau
+    kind: parameter
+    text: "Polyak soft-update rate tau (Eqs. 6–7). Algorithm 1 gives no numeric value."
+    section: "§IV.A.1"
+    status: missing
+    value: null
+
+  - id: hp.logit_noise
+    kind: parameter
+    text: "Online exploration noise on the actor logits. The paper does not specify online exploration."
+    section: ""
+    status: missing
+    value: null
+
+  - id: hp.init_bias
+    kind: parameter
+    text: "Strength of the init bias toward pattern 0 (regular pulses). §I gives the mechanism, not the strength."
+    section: "§I"
+    status: missing
+    value: null
+
+  - id: hp.jitter_fraction
+    kind: parameter
+    text: "Jitter fraction for pulse placement in the jitter alphabet. The paper is silent on it."
+    section: ""
+    status: missing
+    value: null
+
+  - id: arch.actor_input
+    kind: architecture
+    text: "CNN actor over a 1 x l biomarker window, with l = 2000 one-ms slots per 2 s step (Fig. 3a)."
+    section: "§III.B; Fig. 3a"
+    status: stated
+    value: "1 x l, l = 2000"
+
+  - id: arch.cnn_topology
+    kind: architecture
+    text: "Actor and critic CNN layout: channel counts, kernel sizes and the shrink dimension. The paper states a CNN with average pooling and linear heads, but gives no sizes."
+    section: "§III.B; §IV.A.1"
+    status: missing
+    value: null
+
+  - id: arch.action_alphabet
+    kind: architecture
+    text: "The discrete STN pattern set that the actor's logits index. The text leaves cardinality open; Fig. 3a specifies a per-pulse slot head (one ms slot per pulse)."
+    section: "§III.B; Fig. 3a"
+    status: ambiguous
+    value: null
+
+  - id: panel.4a
+    kind: panel
+    text: "Training GPi beta power (PSD x10^3 = raw P_beta/1000) vs training step, 45 Hz model, steps 0–299."
+    section: "Fig. 4a; §IV.A.1"
+    status: stated
+    value: null
+
+  - id: claim.4a_drop
+    kind: claim
+    text: "Beta power falls during training: early (steps <= 130) ~0.49, mid [120, 150] ~0.445, late (>= 150) ~0.38, a drop of ~0.11. It is a modest mid-training fade, not a vertical cliff. Values digitized from the figure."
+    section: "Fig. 4a"
+    status: stated
+    value: "early ~0.49, late ~0.38 (digitized)"
+
+  - id: claim.4a_shape
+    kind: claim
+    text: "The fall is gradual over about five episodes, not a cliff. Episode 0 sits near 0.51 (digitized)."
+    section: "Fig. 4a"
+    status: stated
+    value: "episode 0 ~0.51 (digitized)"

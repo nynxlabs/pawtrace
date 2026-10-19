@@ -1,0 +1,165 @@
+# Mehregan et al. Fig 4a — training GPi beta power vs training step.
+# Ported from rl-adaptive-dbs scripts/digitization/paper_gates.py::fig4a_gates
+# (defaults as of commit 4c9a01ede), one gate per old gate key, same tolerances.
+panel: 4a
+title: Training beta power vs step (45 Hz model)
+claim: >-
+  Beta power (PSD x10^3) falls over 10 episodes x 30 steps of DDPG training on the
+  45 Hz pattern alphabet, with a modest mid-training fade and a settled late level.
+spec_items: [proto.training_schedule, panel.4a]
+
+outputs:
+  beta: {kind: curve, x: training step, y: "PSD (x10^3)"}
+
+# Panel contract (rl-adaptive-dbs would supply this when it migrates):
+#   run.entry: "<module>:<function>"  called as fn(config: dict, seed: int) -> PanelData
+# Until then the example only imports saved artifacts.
+import:
+  format: json-fields
+  series:
+    beta: {y: beta_norm_trace}     # x = training step 0..n-1
+  seed: seed
+  config: knobs
+
+references:
+  paper:
+    path: ${rl_dbs}/artifacts/figures/papers/mehregan/4a/paper_digitization/curves_wpd_refined.json
+    format: curves-json
+    series: training
+    bin_near_duplicates: true      # median-bin HITL double passes (old load_refined default)
+
+metrics:
+  n: {op: length, of: run.beta}
+  # first / last 30 samples (one episode each)
+  start_w: {op: head_mean, of: run.beta, n: 30}
+  end_w: {op: tail_mean, of: run.beta, n: 30}
+  # early (x <= 130) vs late (x >= 150) window means
+  early: {op: window_mean, of: run.beta, hi: 130}
+  late: {op: window_mean, of: run.beta, lo: 150}
+  p_early: {op: window_mean, of: ref.paper, hi: 130}
+  p_late: {op: window_mean, of: ref.paper, lo: 150}
+  drop: {op: sub, a: early, b: late}
+  p_drop: {op: sub, a: p_early, b: p_late}
+  late_early: {op: ratio, a: late, b: early}
+  p_late_early: {op: ratio, a: p_late, b: p_early}
+  # mid-training fade: [0, 100] vs [120, 150]
+  early_lo: {op: window_mean, of: run.beta, hi: 100}
+  mid: {op: window_mean, of: run.beta, lo: 120, hi: 150}
+  p_early_lo: {op: window_mean, of: ref.paper, hi: 100}
+  p_mid: {op: window_mean, of: ref.paper, lo: 120, hi: 150}
+  mid_drop: {op: sub, a: early_lo, b: mid}
+  p_mid_drop: {op: sub, a: p_early_lo, b: p_mid}
+  # episode 0 level
+  ep0: {op: window_mean, of: run.beta, hi: 29}
+  p_ep0: {op: window_mean, of: ref.paper, hi: 29}
+  # per-episode trajectory (episodes = 30-step blocks; ours must be complete)
+  ep: {op: block_means, of: run.beta, width: 30, count: 10, min_count: 30}
+  p_ep: {op: block_means, of: ref.paper, width: 30, count: 10}
+  ep_r: {op: pearson, a: ep, b: p_ep, min_n: 4}
+  late_ep: {op: slice_mean, of: ep, start: 5}
+  p_late_ep: {op: slice_mean, of: p_ep, start: 5}
+  ep_head: {op: slice_mean, of: ep, stop: 4}
+  ep_tail: {op: slice_mean, of: ep, start: -4}
+  p_ep_head: {op: slice_mean, of: p_ep, stop: 4}
+  p_ep_tail: {op: slice_mean, of: p_ep, start: -4}
+  ep_drop: {op: sub, a: ep_head, b: ep_tail}
+  p_ep_drop: {op: sub, a: p_ep_head, b: p_ep_tail}
+  ep_7_9: {op: slice_mean, of: ep, start: 7, stop: 10}
+  ep_5_6: {op: slice_mean, of: ep, start: 5, stop: 7}
+  rebound: {op: sub, a: ep_7_9, b: ep_5_6}
+  half_ep: {op: half_crossing, of: ep, head: 4, tail: 4, min_n: 8}
+  p_half_ep: {op: half_crossing, of: p_ep, head: 4, tail: 4, min_n: 8}
+  ep_rel_err: {op: rel_err, a: ep, b: p_ep}
+  ep_max_rel_err: {op: max_abs, of: ep_rel_err}
+  # within-episode spread over episodes 0-3, ours sampled at the paper's digitized x
+  # (digitizing smooths the curve; sampling ours at the same x compares like with like)
+  beta_at_paper_x: {op: resample, of: run.beta, at: ref.paper}
+  swing: {op: within_block_std, of: beta_at_paper_x, lo: 0, hi: 120, block: 30}
+  p_swing: {op: within_block_std, of: ref.paper, lo: 0, hi: 120, block: 30}
+  swing_full_res: {op: within_block_std, of: run.beta, lo: 0, hi: 120, block: 30}
+
+gates:
+  plot_style:
+    check: equals
+    value: n
+    expected: 300
+    why: 10 episodes x 30 steps (paper §IV.A.1).
+  overall_trend_down:
+    check: less_than
+    a: end_w
+    b: start_w
+    why: Training lowers beta — last episode below the first.
+  drop_vs_paper:
+    check: at_least_fraction
+    value: drop
+    ref: p_drop
+    frac: 0.70
+    why: Early→late drop is at least 70% of the digitized paper drop.
+  late_early_ratio_near_paper:
+    check: rel_close
+    value: late_early
+    ref: p_late_early
+    tol: 0.30
+    why: Late/early ratio within 30% of the paper's.
+  mid_fade_vs_paper:
+    check: ratio_in_band
+    value: mid_drop
+    ref: p_mid_drop
+    band: [0.5, 2.0]
+    ref_positive: true
+    why: Mid-training fade within 0.5-2x the paper's (two-sided — a cliff fails as well as no fade).
+  ep0_near_paper:
+    check: rel_close
+    value: ep0
+    ref: p_ep0
+    tol: 0.15
+    why: >-
+      Episode 0 is exploration; its mean is a seed draw (seeds 0-9 span 0.43-0.55).
+      15% keeps 9/10 seeds in band.
+  episode_shape_r:
+    check: at_least
+    value: ep_r
+    min: 0.7
+    why: Episode-mean trajectory correlates with the paper's (r >= 0.7).
+  late_level_near_paper:
+    check: rel_close
+    value: late_ep
+    ref: p_late_ep
+    tol: 0.15
+    why: Episodes 5-9 settle near the paper's late level.
+  episode_drop_near_paper:
+    check: ratio_in_band
+    value: ep_drop
+    ref: p_ep_drop
+    band: [0.6, 1.6]
+    why: First-4 vs last-4 episode drop within 0.6-1.6x the paper's.
+  no_late_rebound:
+    check: at_most
+    value: rebound
+    max: 0.02
+    why: Episodes 7-9 don't climb back above 5-6 (the paper settles).
+  half_drop_episode_near_paper:
+    check: abs_diff_at_most
+    a: half_ep
+    b: p_half_ep
+    max: 1
+    why: Reaches half its drop within one episode of when the paper does.
+  per_episode_near_paper:
+    check: at_most
+    value: ep_max_rel_err
+    max: 0.20
+    why: Every episode mean within 20% of the paper's.
+  early_swing_near_paper:
+    check: ratio_in_band
+    value: swing
+    ref: p_swing
+    band: [0.5, 2.0]
+    ref_positive: true
+    why: Within-episode step-to-step spread over steps 0-119 within 0.5-2x the paper's.
+
+overlay:
+  series: [beta]
+  references: [paper]
+  xlabel: Steps
+  ylabel: PSD (x10^3)
+  xlim: [0, 300]

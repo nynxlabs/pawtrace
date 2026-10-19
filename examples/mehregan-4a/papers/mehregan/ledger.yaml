@@ -1,0 +1,117 @@
+# Ledger — how every missing / ambiguous item got its value, and every deviation.
+# Deviations go proposed → testing (fresh seeds) → adopted; never adopted straight
+# to pass a gate.
+#
+# Fields: type: gap-fill | interpretation | deviation
+#         source: paper | authors-code | convention | cited-work | author | deviation
+#         status: proposed | testing | adopted | rejected | superseded
+entries:
+  - id: gap.update_frequency
+    item: proto.update_frequency
+    type: interpretation     # gap-fill | interpretation | deviation
+    value: 2                 # one update on every 2nd environment step (literal reading would be 1)
+    source: convention       # paper | authors-code | convention | cited-work | author | deviation
+    reason: "Alg. 1 line 15 'for update frequency do' is ambiguous. One update every 2nd step was agreed with the maintainer (Oct 17 2026) and gives the paper's gradual five-episode fall; the literal one-update-per-step reading converges by episode 3."
+    status: adopted          # proposed | testing | adopted | rejected | superseded
+    evidence: ["docs/figures/mehregan/4a.md § Paper-faithful recipe; § Candidate readings", "scripts/figures/papers/mehregan/paper_protocol.py PaperKnobs.update_every"]
+    decided: 2026-10-17
+
+  - id: gap.reward
+    item: eq.reward
+    type: interpretation
+    value: "+((beta_t - s) * 10)^2 for s < beta_t (Fig. 3c curve), beta_t = 0.35"
+    source: paper
+    reason: "Eq. (8) as printed is negative below beta_t, but the paper's prose and Fig. 3c say positive. The Fig. 3c curve was approved by master (reward_below = square) on Oct 17 2026; the printed linear branch is kept only as a candidate."
+    status: adopted
+    evidence: ["scripts/figures/papers/mehregan/paper_protocol.py PaperKnobs.reward_below", "docs/controllers/ddpg/replication.md § 5"]
+    decided: 2026-10-17
+
+  - id: gap.gamma
+    item: hp.gamma
+    type: gap-fill
+    value: 0.99
+    source: convention
+    reason: "Algorithm 1 gives no numeric gamma. The docs say to match released code if available, else use standard DDPG defaults. No released value is recorded in the docs, so the standard default is used."
+    status: adopted
+    evidence: ["docs/controllers/ddpg/replication.md § 4.1, § 9.3"]
+
+  - id: gap.tau
+    item: hp.tau
+    type: gap-fill
+    value: 0.005
+    source: convention
+    reason: "Algorithm 1 gives no numeric soft-update rate. The docs say to match released code if available, else use standard DDPG defaults. No released value is recorded in the docs, so the standard default is used."
+    status: adopted
+    evidence: ["docs/controllers/ddpg/replication.md § 4.1, § 9.3"]
+
+  - id: gap.logit_noise
+    item: hp.logit_noise
+    type: gap-fill
+    value: 1.0               # Gaussian noise on the actor logits, sigma
+    source: convention
+    reason: "The paper does not specify online exploration. Of sigma 0.25, 0.5 and 1.0 (seed 0), only 1.0 passes every Fig 4a and 4b gate. This was selected on seed 0, the same seed the gates are checked on."
+    status: adopted
+    evidence: ["docs/figures/mehregan/4a.md § Paper-faithful recipe (Oct 2026), Exploration bullet"]
+
+  - id: gap.init_bias
+    item: hp.init_bias
+    type: gap-fill
+    value: 1.0               # init bias toward pattern 0; was 0 before Oct 17 2026
+    source: convention
+    reason: "Section I gives the regular-pulse initialization but not its strength. 2.0 plays the regular 45 Hz train from episode 0, unlike the paper's untreated-like episode 0; 1.0 keeps episode 0 at 0.446."
+    status: adopted
+    evidence: ["docs/figures/mehregan/4a.md § Paper-faithful recipe (Oct 2026), Init bias bullet", "scripts/figures/papers/mehregan/paper_protocol.py DEFAULT_INIT_BIAS"]
+    decided: 2026-10-17
+
+  - id: gap.jitter_fraction
+    item: hp.jitter_fraction
+    type: gap-fill
+    value: "1/3"
+    source: convention
+    reason: "The paper is silent. The current default is 1/3 in paper_protocol.py; an Aug 2026 note in 4a.md calls 1/3 the library alphabet's value, and no other reason is given. The knob only shapes the jitter alphabet, and the shipped 4a run uses the burst alphabet."
+    status: adopted
+    evidence: ["scripts/figures/papers/mehregan/paper_protocol.py PaperKnobs.jitter_fraction", "docs/figures/mehregan/4a.md § Digitization revisit (2026-08-13), Phase-1 knobs"]
+
+  - id: gap.plant_carry
+    item: proto.plant_carry
+    type: gap-fill
+    value: "carry within an episode; new initial conditions at each episode reset"
+    source: convention
+    reason: "Alg. 1 steps are sequential, so the plant carries across steps within an episode. Carrying across episode resets was tested as a candidate and gives a cliff at Fig 4a (carry_plant = false is shipped)."
+    status: adopted
+    evidence: ["docs/figures/mehregan/4a.md § Paper-faithful recipe (Plant state bullet); § Candidate readings"]
+
+  - id: gap.cnn_topology
+    item: arch.cnn_topology
+    type: gap-fill
+    value: "Conv1d(1->16, k=3) -> AdaptiveAvgPool1d(4) -> Conv1d(16->32, k=3) -> flatten -> linear head; critic concatenates the encoded state with the action logits"
+    source: convention
+    reason: "The paper gives no channel counts, kernel sizes or shrink dimension. A compact CNN was chosen and its shape is fixed across training, eval and quantization."
+    status: adopted
+    evidence: ["docs/controllers/ddpg/replication.md § 9.2 (controllers/ddpg/networks.py)"]
+
+  - id: dev.action_alphabet
+    item: arch.action_alphabet
+    type: deviation
+    value: "burst menu: 21 distinct patterns at exactly the mean rate (BurstPatternAlphabet, 45 Hz)"
+    source: deviation
+    reason: "The shipped run uses a 21-pattern menu where Fig 3a specifies a per-pulse slot head. The docs call this an open deviation. Per-pulse candidates were tried and none learned on the plant, so this stays proposed."
+    status: proposed
+    evidence: ["docs/figures/mehregan/4a.md § Paper-faithful recipe (Alphabet bullet); § Follow-ups, item 1"]
+
+  - id: dev.state_length
+    item: arch.actor_input
+    type: deviation
+    value: 1                 # length-1 state: the current step's P_beta
+    source: deviation
+    reason: "Fig 3a draws a 1 x l input (l = 2000). The shipped panels use a length-1 state because a 15-sample window leaves 14 of 15 entries stale, and the CNN collapses to a constant action. The docs make length 1 the default."
+    status: adopted
+    tested_on: {seeds: [], runs: ["TASK-67 state_length 1 vs 15 runs (run IDs not given in the docs)"]}
+    evidence: ["docs/controllers/ddpg/replication.md § 4.2 (Critical finding)", "scripts/figures/papers/mehregan/paper_protocol.py PaperKnobs.state_len"]
+    decided: "2026-07"
+
+questions: []
+#  - id: q.example
+#    items: [example.param]
+#    question: "..."
+#    status: open             # open | sent | answered

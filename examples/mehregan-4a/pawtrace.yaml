@@ -1,0 +1,14 @@
+# Worked example: rl-adaptive-dbs Mehregan Fig 4a through pawtrace's core.
+# Reads saved artifacts from an rl-adaptive-dbs checkout (read-only); set
+# paths.vars.rl_dbs or the PAWTRACE_VAR_RL_DBS env var to point at yours.
+pawtrace: 1
+name: rl-adaptive-dbs (Mehregan Fig 4a example)
+profile: minimal   # minimal | standard | strict — rl-adaptive-dbs itself would run strict
+modules: {}
+paths:
+  papers: papers
+  runs: runs          # gitignored
+  status: STATUS.md
+  images: figures
+  vars:
+    rl_dbs: ~/research/rl-adaptive-dbs
