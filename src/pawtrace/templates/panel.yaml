@@ -1,0 +1,44 @@
+# One figure panel: the panel contract, references, metrics and gates.
+# Write the gates from the digitization BEFORE results exist; log later changes
+# under each gate's `history` with a reason.
+panel: example
+title: ""
+claim: ""                    # what the panel shows, in the paper's words
+spec_items: []               # spec item ids this panel depends on
+
+outputs:
+  y: {kind: curve, x: "", y: ""}
+
+run:
+  entry: "my_project.panels:example"   # fn(config: dict, seed: int) -> PanelData or {name: series}
+  pythonpath: ["."]
+  configs:
+    paper_only: {}           # only what the paper states + conventions — keep this runnable
+    adopted: {}              # paper_only + adopted ledger entries
+  default_config: adopted
+  seeds: [0]
+
+references:
+  paper:
+    path: digitization/example/curves.json
+    format: curves-json      # curves-json | wpd-json | wpd-csv | engauge-csv | table-csv | panel-json
+    series: ""
+    bin_near_duplicates: false
+
+metrics:
+  ours_mean: {op: window_mean, of: run.y}
+  paper_mean: {op: window_mean, of: ref.paper}
+
+gates:
+  level_near_paper:
+    check: rel_close
+    value: ours_mean
+    ref: paper_mean
+    tol: 0.25
+    why: ""
+    added: null
+    history: []
+
+overlay:
+  xlabel: ""
+  ylabel: ""

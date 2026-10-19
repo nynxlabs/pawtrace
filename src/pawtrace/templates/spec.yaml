@@ -1,0 +1,27 @@
+# Paper spec — written at intake, before any build. Every equation, parameter,
+# protocol detail and figure panel the replication needs, each stated (with its
+# section) or missing. `pawtrace playbook intake` explains how to fill it.
+paper:
+  id: <paper-id>
+  title: ""
+  authors: []
+  year: null
+  doi: ""
+  version: published        # which version you read (preprint, published, erratum)
+
+# Code-use policy, set now — not mid-project.
+policy:
+  when_silent: [authors-code, convention, author-question, deviation]   # preference order when the paper is silent
+  authors_code:
+    url: ""
+    license: unknown
+    use: reference-only      # allowed | reference-only | off-limits
+  off_limits: []             # sources nobody may open (e.g. GPL code we rebuild from its paper)
+
+items:
+  - id: example.param
+    kind: parameter          # equation | parameter | protocol | architecture | data | panel | claim | foundation | other
+    text: "what the paper says, in its words"
+    section: "§2.1"
+    status: stated           # stated | missing | ambiguous | contradicted
+    value: null
