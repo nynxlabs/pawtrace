@@ -8,3 +8,5 @@ build/
 .worktrees/
 # run records are local evidence, keyed by commit + config hash + seed
 runs/
+# example outputs (derived from rl-adaptive-dbs artifacts; regenerate locally)
+examples/*/figures/

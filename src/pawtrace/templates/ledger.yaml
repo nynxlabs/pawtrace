@@ -1,0 +1,19 @@
+# Ledger — how every missing / ambiguous item got its value, and every deviation.
+# Deviations go proposed → testing (fresh seeds) → adopted; never adopted straight
+# to pass a gate.
+entries: []
+#  - id: gap.example
+#    item: example.param
+#    type: gap-fill           # gap-fill | interpretation | deviation
+#    value: 0.99
+#    source: convention       # paper | authors-code | convention | cited-work | author | deviation
+#    reason: "why this value"
+#    status: adopted          # proposed | testing | adopted | rejected | superseded
+#    evidence: []
+#    tested_on: {seeds: [], runs: []}
+#    decided: 2026-01-01
+questions: []
+#  - id: q.example
+#    items: [example.param]
+#    question: "..."
+#    status: open             # open | sent | answered
