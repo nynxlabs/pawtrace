@@ -56,7 +56,7 @@ def run_id(git: dict[str, Any], cfg_hash: str, seed: int) -> str:
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
 
 class RunStore:
@@ -124,6 +124,12 @@ class RunStore:
             "data": data.to_json(),
             "checks": [],
         }
+        prev = self.path(panel_id, rec["id"])
+        if prev.exists():  # same commit + config + seed: keep the check history, count the rerun
+            old = json.loads(prev.read_text())
+            rec["checks"] = old.get("checks") or []
+            rec["reruns"] = int(old.get("reruns", 0)) + 1
+            rec["first_created_at"] = old.get("first_created_at") or old.get("created_at")
         self.save(rec)
         return rec
 

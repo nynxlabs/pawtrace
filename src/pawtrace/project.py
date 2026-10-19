@@ -100,25 +100,34 @@ class Project:
             raise mod.ModuleError(f"unknown module {name!r}")
         if mod.MODULES[name].core:
             raise mod.ModuleError(f"{name} is core (always on)")
-        text = self.config_path.read_text()
-        lines = text.splitlines()
+        lines = self.config_path.read_text().splitlines()
         val = "true" if on else "false"
-        start = next((i for i, ln in enumerate(lines) if re.match(r"^modules:\s*(\{\s*\})?\s*(#.*)?$", ln)), None)
+        start = next((i for i, ln in enumerate(lines) if re.match(r"^modules\s*:", ln)), None)
         if start is None:
             lines += ["", "modules:", f"  {name}: {val}"]
         else:
-            if lines[start].split("#")[0].strip() == "modules: {}":
-                lines[start] = "modules:"
+            m = re.match(r"^modules\s*:\s*(?P<body>[^#]*?)\s*(?P<comment>#.*)?$", lines[start])
+            body = (m.group("body") if m else "").strip()
+            comment = f"  {m.group('comment')}" if m and m.group("comment") else ""
+            if body:  # inline flow mapping, e.g. `modules: {sensitivity: true}` -> block form
+                flow = yaml.safe_load(body) or {}
+                if not isinstance(flow, dict):
+                    raise mod.ModuleError(f"{CONFIG_NAME}: modules must be a mapping")
+                lines[start : start + 1] = [f"modules:{comment}"] + [
+                    f"  {k}: {'true' if v else 'false'}" for k, v in flow.items()
+                ]
             end = start + 1
             while end < len(lines) and (lines[end].startswith((" ", "\t")) or not lines[end].strip()):
                 end += 1
+            while end > start + 1 and not lines[end - 1].strip():
+                end -= 1  # insert before trailing blank lines
             for i in range(start + 1, end):
-                if re.match(rf"^\s+{re.escape(name)}\s*:", lines[i]):
-                    indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
-                    lines[i] = f"{indent}{name}: {val}"
+                hit = re.match(rf"^(\s+){re.escape(name)}\s*:[^#]*(#.*)?$", lines[i])
+                if hit:
+                    lines[i] = f"{hit.group(1)}{name}: {val}" + (f"  {hit.group(2)}" if hit.group(2) else "")
                     break
             else:
-                lines.insert(end if lines[end - 1].strip() else end - 1, f"  {name}: {val}")
+                lines.insert(end, f"  {name}: {val}")
         self.config_path.write_text("\n".join(lines) + "\n")
         self.cfg = yaml.safe_load(self.config_path.read_text()) or {}
 

@@ -97,15 +97,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     )
     created = [str(cfg_path)]
     if args.paper:
-        d = root / "papers" / args.paper
-        (d / "panels").mkdir(parents=True, exist_ok=True)
-        for name in ("spec.yaml", "ledger.yaml"):
-            src = resources.files("pawtrace") / "templates" / name
-            (d / name).write_text(src.read_text().replace("<paper-id>", args.paper))
-            created.append(str(d / name))
-        src = resources.files("pawtrace") / "templates" / "panel.yaml"
-        (d / "panels" / "example.yaml").write_text(src.read_text())
-        created.append(str(d / "panels" / "example.yaml"))
+        created += _paper_skeleton(root / "papers" / args.paper, args.paper)
     gi = root / ".gitignore"
     if not gi.exists() or "runs/" not in gi.read_text():
         with gi.open("a") as fh:
@@ -114,11 +106,36 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _paper_skeleton(d: Path, paper: str) -> list[str]:
+    if (d / "spec.yaml").exists():
+        raise CliError(f"{d / 'spec.yaml'} already exists")
+    (d / "panels").mkdir(parents=True, exist_ok=True)
+    created = []
+    for name in ("spec.yaml", "ledger.yaml"):
+        src = resources.files("pawtrace") / "templates" / name
+        (d / name).write_text(src.read_text().replace("<paper-id>", paper))
+        created.append(str(d / name))
+    src = resources.files("pawtrace") / "templates" / "panel.yaml"
+    (d / "panels" / "example.yaml").write_text(src.read_text())
+    created.append(str(d / "panels" / "example.yaml"))
+    return created
+
+
+def cmd_add_paper(args: argparse.Namespace) -> int:
+    proj = _project(args)
+    created = _paper_skeleton(proj.paper_dir(args.paper), args.paper)
+    _emit(args, {"created": created}, "created:\n" + "\n".join(f"  {c}" for c in created)
+          + f"\nnext: fill spec.yaml (`pawtrace playbook intake`), then `pawtrace lint {args.paper}`")
+    return 0
+
+
 def cmd_modules(args: argparse.Namespace) -> int:
     proj = _project(args)
     if args.action in ("enable", "disable"):
         if not args.name:
             raise CliError(f"modules {args.action} needs a module name")
+        if args.name not in mod.MODULES:
+            raise mod.ModuleError(f"unknown module {args.name!r} (`pawtrace modules` lists them)")
         names = mod.with_dependencies(args.name) if (args.action == "enable" and args.with_deps) else [args.name]
         for n in names:
             if not mod.MODULES[n].core:
@@ -397,6 +414,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--name")
     s.add_argument("--paper", help="also scaffold papers/<id>/ spec, ledger and an example panel")
     s.set_defaults(fn=cmd_init)
+
+    s = sub.add_parser("add-paper", parents=[common], help="create papers/<id>/ spec + ledger skeleton in this project (intake starts here)")
+    s.add_argument("paper")
+    s.set_defaults(fn=cmd_add_paper)
 
     s = sub.add_parser("modules", parents=[common], help="list modules, or enable/disable one")
     s.add_argument("action", nargs="?", choices=["list", "enable", "disable"], default="list")
