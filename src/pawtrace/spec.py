@@ -92,6 +92,12 @@ class Paper:
         if not self.spec:
             add("error", "no spec.yaml (run intake: every detail stated or missing, with its section)")
             return out
+        pmeta = self.spec.get("paper") or {}
+        for key in ("title", "authors", "year"):
+            if not pmeta.get(key):
+                add("warn", f"paper.{key} is empty")
+        if not pmeta.get("version"):
+            add("warn", "paper.version is empty (which version was read: preprint, published, erratum)")
         policy = self.spec.get("policy")
         if not policy:
             add("error", "no policy: set the code-use policy at intake, before any build")
@@ -111,6 +117,8 @@ class Paper:
             if iid in ids:
                 add("error", f"duplicate item id {iid}")
             ids.add(iid)
+            if str(iid).startswith("example."):
+                add("warn", f"item {iid} is the template placeholder — replace it with the paper's items")
             if i.get("kind") not in ITEM_KINDS:
                 add("warn", f"item {iid}: kind {i.get('kind')!r} not in {', '.join(ITEM_KINDS)}")
             st = i.get("status")
