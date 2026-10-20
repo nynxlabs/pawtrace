@@ -1,6 +1,6 @@
 # Mehregan et al. Fig 4a — training GPi beta power vs training step.
 # Ported from rl-adaptive-dbs scripts/digitization/paper_gates.py::fig4a_gates
-# (defaults as of commit 4c9a01ede), one gate per old gate key, same tolerances.
+# (defaults as of commit 6fdd2b1aa), one gate per old gate key, same tolerances.
 panel: 4a
 title: Training beta power vs step (45 Hz model)
 claim: >-
