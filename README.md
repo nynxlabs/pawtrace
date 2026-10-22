@@ -8,7 +8,7 @@ not a framework: the paper's model code (simulators, controllers, training loops
 in your project's repo; pawtrace records what the paper says, how each gap was filled,
 what ran, and whether the results match the paper's figures.
 
-Private, work in progress (v0.1: core only). Scope and design notes:
+Work in progress (v0.1: core only). Scope and design notes:
 `docs/design.md`.
 
 ## What's in the core
@@ -52,7 +52,9 @@ pawtrace init | add-paper | modules | lint | spec show|render | panels | run | i
 panel's 13 gates as config, its WPD-refined digitization as the reference, and saved
 training artifacts imported as runs. `parity.py` runs pawtrace's gates and the original
 hand-coded gate function side by side on every saved artifact and checks that every
-verdict matches (it needs an rl-adaptive-dbs checkout and only reads from it).
+verdict matches. It needs a local rl-adaptive-dbs checkout and only reads from it; the saved
+training runs and the paper digitization it reads are local artifacts (gitignored there), so
+without them `parity.py` exits 2 and its test is skipped.
 
 ```bash
 cd examples/mehregan-4a

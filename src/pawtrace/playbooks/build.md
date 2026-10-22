@@ -15,7 +15,7 @@ foundations, with every parameter traceable to a spec item or ledger entry, and 
    in code.
 4. Write tests against the spec from day 1: e.g. "network has one hidden layer of N
    units (§III.B)". These catch drift that months of tuning won't.
-5. Long jobs: launch through your machine's job queue (on nynxbox, `heavy`), not in the
+5. Long jobs: launch through your machine's job queue (a batch queue or low-priority job slice), not in the
    foreground.
 
 ## Done when

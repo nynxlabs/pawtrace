@@ -9,17 +9,17 @@ paper:
   id: mehregan
   title: "Enhancing Adaptive Deep Brain Stimulation via Efficient Reinforcement Learning"
   authors: []                # only "Mehregan et al." is in the docs; full author list not recorded
-  year: null                 # not stated in the docs
-  doi: ""                    # not stated in the docs
-  version: ""                # which version you read (preprint, published, erratum) — not stated in the docs
+  year: 2024
+  doi: "10.1109/MobileCloud62079.2024.00013"
+  version: "published (IEEE MobileCloud 2024)"   # no open version found
 
 # Code-use policy, set now — not mid-project.
 policy:
   when_silent: [authors-code, convention, author-question, deviation]   # preference order when the paper is silent
   authors_code:
-    url: "https://github.com/howyoubinh/CL-DBS-RL"   # name from the brief; host inferred, not in the docs
+    url: ""                  # no code release from the Mehregan et al. authors found
     license: unknown
-    use: allowed             # allowed | reference-only | off-limits
+    use: reference-only      # allowed | reference-only | off-limits
   off_limits: ["Fleming 2020 GPL source"]   # sources nobody may open (e.g. GPL code we rebuild from its paper)
 
 # Item kinds: equation | parameter | protocol | architecture | data | panel | claim | foundation | other

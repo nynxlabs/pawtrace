@@ -3,7 +3,9 @@
 Runs both on every saved Mehregan Fig 4a series artifact in an rl-adaptive-dbs
 checkout (read-only — nothing is written there; bytecode writing is off), plus
 synthetic edge cases (truncated, flat, rising, NaN traces), and compares every
-gate verdict and the shared metrics.
+gate verdict and the shared metrics. The saved series and the paper digitization
+are local artifacts in that checkout (gitignored, not published with
+rl-adaptive-dbs), so this only runs where they exist.
 
     uv run --project ../.. python parity.py [--rl-dbs PATH] [--json]
 

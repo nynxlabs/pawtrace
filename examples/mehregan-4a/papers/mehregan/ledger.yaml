@@ -21,7 +21,7 @@ entries:
     type: interpretation
     value: "+((beta_t - s) * 10)^2 for s < beta_t (Fig. 3c curve), beta_t = 0.35"
     source: paper
-    reason: "Eq. (8) as printed is negative below beta_t, but the paper's prose and Fig. 3c say positive. The Fig. 3c curve was approved by master (reward_below = square) on Oct 17 2026; the printed linear branch is kept only as a candidate."
+    reason: "Eq. (8) as printed is negative below beta_t, but the paper's prose and Fig. 3c say positive. The Fig. 3c curve was approved by the maintainer (reward_below = square) on Oct 17 2026; the printed linear branch is kept only as a candidate."
     status: adopted
     evidence: ["scripts/figures/papers/mehregan/paper_protocol.py PaperKnobs.reward_below", "docs/controllers/ddpg/replication.md § 5"]
     decided: 2026-10-17
