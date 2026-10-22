@@ -68,4 +68,4 @@ uv run --group dev pytest -q
 
 ## License
 
-MIT — see `LICENSE`.
+Apache License 2.0, Copyright (c) 2026 nynxlabs LLC — see `LICENSE` and `NOTICE`.
