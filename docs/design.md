@@ -1,7 +1,6 @@
 # pawtrace design notes (v0.1)
 
-Scope and module list: `~/vault/research/pawtrace/README.md` (source of truth). This file
-records how v0.1 implements the core and which defaults were picked.
+This file records how v0.1 implements the core and which defaults were picked.
 
 ## Shape
 

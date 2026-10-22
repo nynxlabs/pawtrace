@@ -20,4 +20,4 @@
   realization, so don't tune to one seed's wiggles.
 - Record, don't overwrite: re-checking appends to the record's `checks` list. No `.bak`
   copies.
-- Heavy runs go through the machine's queue (`heavy` on nynxbox) with a timeout.
+- Heavy runs go through the machine's queue (e.g. a batch queue or a low-priority job slice) with a timeout.
