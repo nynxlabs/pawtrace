@@ -24,6 +24,7 @@ references:
     format: curves-json      # curves-json | wpd-json | wpd-csv | engauge-csv | table-csv | panel-json
     series: ""
     bin_near_duplicates: false
+    digitized_from: ""       # the image you digitized: extraction id + file, e.g. "7a1b26d127cf figures/fig-4a.png"
 
 metrics:
   ours_mean: {op: window_mean, of: run.y}

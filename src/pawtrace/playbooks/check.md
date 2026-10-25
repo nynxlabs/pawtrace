@@ -5,14 +5,24 @@ digitization **before results exist**, and verdicts on recorded runs.
 
 ## Digitize
 
-1. Digitize the paper panel (WebPlotDigitizer, Engauge, or a color-mask seed refined by
-   hand). Store it in a format pawtrace reads: `curves-json` (thin schema: `n` + full
+1. Start from the extracted panel image when there is one: `pawtrace extract show
+   <paper>` lists `papers/<paper>/source/figures/fig-<N><panel>.png` (per panel) and
+   `fig-<N>.png` (whole figure), cropped from the PDF at `extract.dpi` (default 200;
+   rerun `pawtrace extract run <paper> --dpi 400` for finer reading). Check the crop
+   against the PDF — panel splitting is heuristic — and calibrate the axes on the crop,
+   not on a screenshot. The crops stay local (`source/` is gitignored); the
+   digitization is your own measurement and is committed with the panel.
+2. Digitize the paper panel (WebPlotDigitizer, Engauge, or a color-mask seed refined by
+   hand). Record which image you digitized in the reference's
+   `digitized_from` (the extraction id from `source/manifest.json` and the file name;
+   a rerun at another `--dpi` gives a new id). Store it in a
+   format pawtrace reads: `curves-json` (thin schema: `n` + full
    `xy`), `wpd-json`, `wpd-csv`, `engauge-csv`, or `table-csv` for bars/tables.
-2. Add it under the panel's `references:` (`path`, `format`, `series`,
+3. Add it under the panel's `references:` (`path`, `format`, `series`,
    `bin_near_duplicates: true` for hand-digitized curves with double passes). Mark
    `status: needs_redo` if the digitization is known to be off — lint and overlays
    flag it.
-3. Never read levels off a PNG; gates read the digitization.
+4. Never read levels off a PNG; gates read the digitization.
 
 ## Gate
 
