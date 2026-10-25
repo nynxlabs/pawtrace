@@ -96,7 +96,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         f"  images: figures\n"
         f"  vars: {{}}          # ${{name}} substitutions for paths\n"
         f"extract:              # the extract module (`pawtrace modules enable extract`; on in standard/strict)\n"
-        f"  backend: pdfium     # pdfium (built in: pip install 'pawtrace[extract]') | command (any PDF -> markdown tool)\n"
+        f"  backend: pdfium     # pdfium (built in: uv sync --extra extract) | command (any PDF -> markdown tool)\n"
         f"  dpi: 200\n"
         f"  command: []         # backend command: argv with {{pdf}} and {{out}}, e.g. [marker_single, '{{pdf}}', --output_dir, '{{out}}']\n"
         f"  formula_command: [] # optional: argv with {{image}}; prints LaTeX for one equation crop\n"

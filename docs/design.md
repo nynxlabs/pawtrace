@@ -61,9 +61,33 @@ Semantics worth knowing:
 | no text-only baseline | panel lint warns without a `paper_only` config |
 | stale README counts, `.bak` files | `pawtrace status` is generated; run records append, never copy |
 
+## Paper rights and extraction (oct 25 2026)
+
+Devin asked for paper rights at intake (core, lint-checked): each paper's `spec.yaml`
+has a `rights:` block (license, copy, open version, access, access terms, rules,
+permissions). The `extract` module (optional, group `intake`) pulls text, equations and
+figures from the PDF into a self-ignoring `papers/<paper>/source/` folder and seeds
+candidate items for review.
+
+| question | default | why |
+| --- | --- | --- |
+| where paper content may go | nothing from the paper (PDF, full text, extracted text and equations, figure crops) is committed or published unless its license (CC BY, CC0, public domain) or a recorded permission allows it; short quotes with section citations in `spec.yaml` are fine | copyright; the spec has to stay publishable without the paper |
+| rights in the core, extraction as a module | the `rights:` block is required and lint-checked for every paper; extraction is optional | every paper needs the rights question answered, even without extraction |
+| PDF library | PDFium (pypdfium2, Apache-2.0 / BSD-3-Clause), not PyMuPDF | PyMuPDF is AGPL-3.0; pawtrace is Apache-2.0 |
+| higher-quality extraction | a user-run `command` backend, not a bundled dependency or a built-in model client | marker is GPL-3.0 code with restricted model weights and MinerU is AGPL-3.0; pawtrace makes no model calls ("a tool, not a harness"), so it never imports them or holds model config, and needs no GPU or network |
+| where extracted files go | `papers/<paper>/source/`, with its own `.gitignore` (`*`); `init` also ignores `papers/*/source/` | restricted content can't be committed by accident |
+| status of extracted items | `candidate`, never auto-stated; `extracted:` records the extraction id, page and image | a person reviews each item before it counts as the paper's stated detail |
+| AI tools | published papers read for research may go to AI tools subject to the access license's text-mining and AI terms and the tool's data-training terms; manuscripts under review never | the access terms decide, not the project |
+
+Guards: extraction refuses without a `rights:` block, refuses an `--out` folder that git
+doesn't ignore when the paper may not be redistributed, and refuses a command backend
+when `ai_tools: never` unless `--confirm-no-ai` is passed. Lint errors when restricted
+content (anything under `papers/<paper>/source/`, or any PDF in the paper folder) is
+tracked or not ignored by git.
+
 ## Not built yet
 
-All 17 optional modules. Next in the build order: sensitivity, preregistration, source
-log, dependency graph; then paper tables + release bundle. Module dependencies in
+17 of the 18 optional modules (extract is built). Next in the build order: sensitivity,
+preregistration, source log, dependency graph; then paper tables + release bundle. Module dependencies in
 `modules.py` (scaffolding → foundations, dependency-graph → foundations, paper-tables →
 seed-stats) are a first proposal.
