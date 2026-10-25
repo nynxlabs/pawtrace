@@ -19,8 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 KNOWN_HEADINGS = (
-    "abstract", "introduction", "background", "related work", "method", "methods", "materials and methods",
-    "model", "results", "discussion", "conclusion", "conclusions", "references", "bibliography",
+    "abstract", "introduction", "background", "related work", "methods", "materials and methods", "results", "discussion", "conclusion", "conclusions", "references", "bibliography",
     "acknowledgment", "acknowledgments", "acknowledgement", "acknowledgements", "appendix",
     "supplementary material", "supplementary information", "data availability", "code availability",
 )
@@ -31,6 +30,7 @@ ROMAN = re.compile(r"^([IVX]{1,6})\.\s+([A-Z][^\n]{0,85})$")
 LETTER = re.compile(r"^([A-H])\.\s+([A-Z][^\n]{0,85})$")
 CAPTION = re.compile(r"^(?:Fig\.|Figure|FIG\.|FIGURE|Supplementary Figure)\s*(S?\d{1,3})\s*(?:[.:|]|—|–)\s*(.*)$")
 EQ_NUMBER = re.compile(r"^(?P<body>.*\S)\s*\((?P<num>(?:S?\d{1,3}|[A-Z]\.\d{1,3})[a-z]?)\)$")
+EQ_ALONE = re.compile(r"^\((?:S?\d{1,3}|[A-Z]\.\d{1,3})[a-z]?\)$")
 MATHY = re.compile(r"[=+\-−×·∑∏∫∂√≤≥≈∝∞^_/αβγδεζηθικλμνξπρστυφχψωΓΔΘΛΞΠΣΦΨΩ]")
 PANEL_LABEL = re.compile(r"^\(?([a-hA-H])\)?\.?$")
 CAPTION_PANELS = re.compile(r"\(([a-hA-H])\)")
@@ -63,7 +63,7 @@ def heading_parts(text: str, styled: bool) -> tuple[str | None, str, str] | None
     if not (2 <= len(t) <= 90):
         return None
     bare = t.rstrip(":.").strip()
-    if bare.lower() in KNOWN_HEADINGS:
+    if bare.lower() in KNOWN_HEADINGS and bare[:1].isupper():
         return (None, bare, "named")
     if not styled or len(t.split()) > 12 or t.endswith((",", ";")):
         return None
