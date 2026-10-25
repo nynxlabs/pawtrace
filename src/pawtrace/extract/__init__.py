@@ -16,7 +16,7 @@ paper's rights allow it::
 The extraction id hashes the PDF, backend, options and every output file, so spec items
 (``extracted.extraction``) and run records can cite exactly which extraction they used.
 
-Backends: ``pdfium`` (built in, offline, CPU — ``pip install 'pawtrace[extract]'``) and
+Backends: ``pdfium`` (built in, offline, CPU — ``uv sync --extra extract``) and
 ``command`` (any PDF → markdown converter you run; see ``command.py``). Extraction never
 marks anything ``stated``: seeded items start as ``status: candidate``.
 """
@@ -123,7 +123,7 @@ def run(paper_dir: Path, paper_id: str, cfg: dict[str, Any], pdf: str | Path | N
 
     if opts["backend"] == "pdfium":
         if not pdfium_backend.available():
-            raise ExtractError("the pdfium backend needs pypdfium2 + pillow: pip install 'pawtrace[extract]'")
+            raise ExtractError("the pdfium backend needs pypdfium2 + pillow: uv sync --extra extract")
         ex = pdfium_backend.extract(local, out, opts)
         backend_version = pdfium_backend.version()
     else:
