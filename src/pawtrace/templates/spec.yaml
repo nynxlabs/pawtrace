@@ -7,7 +7,23 @@ paper:
   authors: []
   year: null
   doi: ""
-  version: published        # which version you read (preprint, published, erratum)
+  version: published        # which version you read (preprint, accepted manuscript, published, erratum)
+
+# Paper rights — set now, before anyone (person or agent) works from the paper.
+# Default: nothing from the paper is committed or published (PDF, full text,
+# extracted text/equations, figure crops stay in the gitignored source/ folder).
+rights:
+  license: unknown          # CC-BY-4.0 | CC-BY-NC-4.0 | CC0-1.0 | public-domain | arXiv-nonexclusive | publisher-copyright | unknown | <other>
+  license_url: ""
+  copy_url: ""              # the copy we work from; prefer an open-access or arXiv version when one exists
+  open_version: ""          # open-access / arXiv URL, or "none found"
+  access: unknown           # open-access | subscription | personal-copy | author-provided | under-review | unknown
+  access_terms: ""          # text/data-mining and AI clauses of the access license (and the AI tool's data terms), with a link
+  rules:
+    redistribute: false     # may the PDF, text, equations or figure crops be committed or published? only if the license allows (e.g. CC BY)
+    quotes_in_spec: true    # short quotes with section citations in spec.yaml
+    ai_tools: allowed       # allowed | local-only | never — published paper read for research: usually allowed; under review: never
+  permissions: []           # author/publisher permissions: {from, date, grants: [redistribute, ai-tools, figures], ref}
 
 # Code-use policy, set now — not mid-project.
 policy:

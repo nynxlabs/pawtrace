@@ -52,6 +52,10 @@ gates:
 
 SPEC = {
     "paper": {"id": "demo", "title": "Demo", "authors": [], "year": 2024, "doi": "", "version": "published"},
+    "rights": {
+        "license": "CC-BY-4.0", "copy_url": "https://example.org/demo.pdf", "open_version": "https://example.org/demo.pdf",
+        "access": "open-access", "rules": {"redistribute": False, "quotes_in_spec": True, "ai_tools": "allowed"}, "permissions": [],
+    },
     "policy": {
         "when_silent": ["authors-code", "convention", "author-question", "deviation"],
         "authors_code": {"url": "", "license": "unknown", "use": "reference-only"},
