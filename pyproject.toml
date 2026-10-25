@@ -14,12 +14,14 @@ dependencies = [
 
 [project.optional-dependencies]
 plot = ["matplotlib>=3.8"]
+# `extract` module, lightweight backend: PDFium (Apache-2.0 / BSD-3-Clause) — offline, no GPU
+extract = ["pypdfium2>=4.30", "pillow>=10"]
 
 [project.scripts]
 pawtrace = "pawtrace.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "matplotlib>=3.8"]
+dev = ["pytest>=8", "matplotlib>=3.8", "pypdfium2>=4.30", "pillow>=10"]
 
 [build-system]
 requires = ["hatchling"]
