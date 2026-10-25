@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from .common import (
-    CAPTION, EQ_NUMBER, MATHY, PANEL_LABEL, Extraction, caption_panels, heading_parts, section_label, slug, unique_id,
+    CAPTION, EQ_ALONE, EQ_NUMBER, MATHY, PANEL_LABEL, Extraction, caption_panels, heading_parts, section_label, slug, unique_id,
 )
 
 GRAPHIC_TYPES = (2, 3, 4, 5)   # FPDF_PAGEOBJ_PATH, IMAGE, SHADING, FORM
@@ -61,7 +61,7 @@ class Line:
 
 
 def _font(tp: Any, raw: Any, idx: int) -> tuple[float, bool]:
-    if idx < 0:
+    if idx is None or idx < 0:
         return 0.0, False
     size = float(raw.FPDFText_GetFontSize(tp, idx))
     n = raw.FPDFText_GetFontInfo(tp, idx, None, 0, None)
@@ -87,6 +87,8 @@ def _page_lines(page: Any, pno: int, raw: Any) -> list[Line]:
         if not s:
             continue
         size, bold = _font(tp, raw, tp.get_index(l + 0.5, (b + t) / 2, 2.0, (t - b) / 2 + 1))
+        if (t - b) > max(3 * size, 30) and (r - l) < (t - b):
+            continue   # rotated text (e.g. the arXiv stamp in the margin)
         segs.append(Line(pno, l, b, r, t, s, size or (t - b), bold))
     # merge segments that sit on the same baseline and nearly touch (one visual line)
     segs.sort(key=lambda s: (-round(s.top, 0), s.left))
@@ -115,7 +117,32 @@ def _page_lines(page: Any, pno: int, raw: Any) -> list[Line]:
         lines.append(cur)
     for ln in lines:
         ln.text = " ".join(ln.text.split())
-    return lines
+    return _attach_equation_numbers(lines, page.get_size()[0])
+
+
+def _attach_equation_numbers(lines: list[Line], width: float) -> list[Line]:
+    """A right-aligned "(3)" usually sits apart from its equation: join it to the pieces on its row."""
+    nums = [ln for ln in lines if EQ_ALONE.match(ln.text)]
+    if not nums:
+        return lines
+    mid = width / 2
+    long = [ln for ln in lines if len(ln.text) > 30]
+    two_col = bool(long) and sum(1 for ln in long if ln.left < mid - 10 and ln.right > mid + 10) < 0.3 * len(long)
+    gone: set[int] = set()
+    for num in nums:
+        row = [ln for ln in lines if ln is not num and id(ln) not in gone and ln.right <= num.left + 1
+               and min(ln.top, num.top) - max(ln.bottom, num.bottom) > -0.5 * num.height
+               and num.left - ln.right < 0.6 * (num.right - min(x.left for x in lines))
+               and not (two_col and num.left > mid and ln.left < mid - 10)]   # stay in the number's column
+        row = [ln for ln in row if not ln.text.endswith(".") or MATHY.search(ln.text)]
+        if not row:
+            continue
+        row.sort(key=lambda x: x.left)
+        gone.update(id(x) for x in row)
+        num.text = " ".join(x.text for x in row) + " " + num.text
+        num.left, num.bottom, num.top = row[0].left, min(num.bottom, *(x.bottom for x in row)), max(num.top, *(x.top for x in row))
+        num.size, num.bold = row[0].size, row[0].bold
+    return [ln for ln in lines if id(ln) not in gone]
 
 
 def _columns(lines: list[Line], width: float) -> None:
@@ -184,7 +211,8 @@ def _near(a: tuple[float, ...], b: tuple[float, ...], gap: float) -> bool:
 
 
 def _figure_box(cap: Line, captions: list[Line], graphics: list[tuple[float, float, float, float]],
-                lines: list[Line], width: float, height: float) -> tuple[float, float, float, float] | None:
+                lines: list[Line], width: float, height: float, body_size: float) -> tuple[tuple[float, float, float, float] | None, str]:
+    """The figure's crop box next to its caption, and how it was found (``graphics`` | ``text-gap`` | ``none``)."""
     mid = width / 2
     xr = (0.0, width) if cap.col == "full" else ((0.0, mid + 5) if cap.col == "left" else (mid - 5, width))
 
@@ -217,7 +245,7 @@ def _figure_box(cap: Line, captions: list[Line], graphics: list[tuple[float, flo
                     grown = True
         # axis labels, tick labels and panel letters around the graphics
         short = [ln for ln in lines if ln is not cap and len(ln.text) <= 40 and not CAPTION.match(ln.text)
-                 and (ln.top <= cap.bottom or ln.bottom >= cap.top)]
+                 and (ln.bottom >= cap.top if side == "above" else ln.top <= cap.bottom) and not _prose(ln, body_size)]
         taken: set[int] = set()
         grown = True
         while grown:
@@ -229,8 +257,49 @@ def _figure_box(cap: Line, captions: list[Line], graphics: list[tuple[float, flo
                     box = _union([box, lb])
                     grown = True
         l, b, r, t = box
-        return (max(0.0, l - 3), max(0.0, b - 3), min(width, r + 3), min(height, t + 3))
-    return None
+        b, t = max(0.0, b - 3), min(height, t + 3)
+        if side == "above":
+            b = max(b, cap.top + 1)      # never into the caption
+        else:
+            t = min(t, cap.bottom - 1)
+        # trim a sentence of running text (a table caption, a paragraph end) caught at the far edge
+        for ln in lines:
+            if ln is cap or len(ln.text) <= 40 or ln.right < l or ln.left > r:
+                continue
+            mid_y = (ln.top + ln.bottom) / 2
+            if side == "above" and t - 0.15 * (t - b) <= mid_y <= t:
+                t = min(t, ln.bottom - 1)
+            elif side == "below" and b <= mid_y <= b + 0.15 * (t - b):
+                b = max(b, ln.top + 1)
+        return (max(0.0, l - 3), b, min(width, r + 3), t), "graphics"
+    # no graphics objects (figure drawn as text, or nested too deep): crop the gap between
+    # the caption and the nearest body paragraph above it
+    body_above = [ln.bottom for ln in lines if ln.bottom > cap.top and ln.top <= ceiling and _is_body(ln, body_size, xr)]
+    top = min([ceiling, *body_above]) if body_above else min(ceiling, height - 50)
+    if top - cap.top < 40:
+        return None, "none"
+    return (xr[0], cap.top + 2, xr[1], top - 2), "text-gap"
+
+
+def _prose(ln: Line, body_size: float) -> bool:
+    """A fragment of running text (body-size font, several words, ends like a sentence part)."""
+    return abs(ln.size - body_size) <= 0.06 * body_size and len(ln.text.split()) >= 3 and ln.text[-1:] in ".,;:"
+
+
+def _is_body(ln: Line, body_size: float, xr: tuple[float, float]) -> bool:
+    return (abs(ln.size - body_size) <= 0.06 * body_size and not ln.bold and len(ln.text) >= 40
+            and (ln.right - ln.left) >= 0.35 * (xr[1] - xr[0]))
+
+
+def _equation_box(ln: Line, lines: list[Line], width: float, height: float) -> tuple[float, float, float, float]:
+    """The equation's row plus up to one line height above and below (fractions, sums), stopping at text lines."""
+    pad = 1.0 * ln.height
+    over = [x for x in lines if x is not ln and x.right > ln.left and x.left < ln.right]
+    above = [x.bottom for x in over if x.bottom >= ln.top - 1 and len(x.text) > 25]
+    below = [x.top for x in over if x.top <= ln.bottom + 1 and len(x.text) > 25]
+    top = min([ln.top + pad, *[a - 0.5 for a in above if a - 0.5 > ln.top]])
+    bottom = max([ln.bottom - pad, *[b + 0.5 for b in below if b + 0.5 < ln.bottom]])
+    return (max(0.0, ln.left - 6), max(0.0, bottom), min(width, ln.right + 6), min(height, top))
 
 
 def _panel_boxes(labels: list[Line], fig: tuple[float, float, float, float]) -> dict[str, tuple[float, float, float, float]]:
@@ -287,39 +356,52 @@ def extract(pdf: Path, out: Path, options: dict[str, Any]) -> Extraction:
     fig_ids: set[str] = set()
     inner: set[int] = set()
     caption_starts: dict[int, dict[str, Any]] = {}
+    found: dict[str, list[tuple[int, int, Line, Any, str]]] = {}
     for pno, lines in enumerate(pages):
-        page = doc[pno]
         w, h = sizes[pno]
         caps = [ln for ln in lines if CAPTION.match(ln.text)]
         if not caps:
             continue
-        graphics = _graphics(page, w, h)
-        for cap in caps:
-            m = CAPTION.match(cap.text)
-            num = m.group(1)
-            if f"fig.{num}" in fig_ids:
-                ex.warnings.append(f"page {pno + 1}: second caption for Fig. {num} skipped")
-                continue
-            fid = unique_id(f"fig.{num}", fig_ids)
-            box = _figure_box(cap, caps, graphics, lines, w, h)
-            fig: dict[str, Any] = {"id": fid, "number": num, "page": pno + 1, "caption": cap.text, "image": None, "bbox": None, "panels": []}
-            if box is None:
-                ex.warnings.append(f"Fig. {num} (page {pno + 1}): no graphics found next to the caption — crop it by hand")
-            else:
-                fig["bbox"] = [round(v, 1) for v in box]
-                fig["image"] = f"figures/fig-{slug(num)}.png"
-                _render(page, box, w, h, dpi, out / fig["image"])
-                members = [ln for ln in lines if ln.inside(box) and all(ln is not c for c in caps)]
-                inner.update(id(ln) for ln in members)
-                labels = [ln for ln in members if PANEL_LABEL.match(ln.text)]
-                if len({PANEL_LABEL.match(ln.text).group(1).lower() for ln in labels}) >= 2:
-                    for letter, pbox in sorted(_panel_boxes(labels, box).items()):
-                        img = f"figures/fig-{slug(num)}{letter}.png"
-                        _render(page, pbox, w, h, dpi, out / img)
-                        fig["panels"].append({"id": f"{fid}{letter}", "label": letter, "caption": None,
-                                              "image": img, "bbox": [round(v, 1) for v in pbox]})
-            ex.figures.append(fig)
-            caption_starts[id(cap)] = fig
+        graphics = _graphics(doc[pno], w, h)
+        for k, cap in enumerate(caps):
+            box, how = _figure_box(cap, caps, graphics, lines, w, h, body)
+            found.setdefault(CAPTION.match(cap.text).group(1), []).append((pno, k, cap, box, how))
+    rank = {"graphics": 0, "text-gap": 1, "none": 2}
+    chosen = []
+    for num, cands in found.items():
+        # a body sentence can start with "Fig. 4." too: prefer the one with graphics, then the smaller font
+        best = min(cands, key=lambda c: (rank[c[4]], round(c[2].size, 1), c[0], c[1]))
+        chosen.append(best)
+        for c in cands:
+            if c is not best:
+                ex.warnings.append(f"page {c[0] + 1}: another line starting like the Fig. {num} caption, skipped: {c[2].text[:60]!r}")
+    for pno, _, cap, box, how in sorted(chosen, key=lambda c: (c[0], c[1])):
+        lines = pages[pno]
+        page = doc[pno]
+        w, h = sizes[pno]
+        caps = [c for p2, _, c, _, _ in chosen if p2 == pno]
+        num = CAPTION.match(cap.text).group(1)
+        fid = unique_id(f"fig.{num}", fig_ids)
+        if how == "text-gap":
+            ex.warnings.append(f"Fig. {num} (page {pno + 1}): no graphics objects; cropped the gap above the caption — check the crop")
+        fig: dict[str, Any] = {"id": fid, "number": num, "page": pno + 1, "caption": cap.text, "image": None, "bbox": None, "panels": []}
+        if box is None:
+            ex.warnings.append(f"Fig. {num} (page {pno + 1}): no graphics found next to the caption — crop it by hand")
+        else:
+            fig["bbox"] = [round(v, 1) for v in box]
+            fig["image"] = f"figures/fig-{slug(num)}.png"
+            _render(page, box, w, h, dpi, out / fig["image"])
+            members = [ln for ln in lines if ln.inside(box) and all(ln is not c for c in caps)]
+            inner.update(id(ln) for ln in members)
+            labels = [ln for ln in members if PANEL_LABEL.match(ln.text)]
+            if len({PANEL_LABEL.match(ln.text).group(1).lower() for ln in labels}) >= 2:
+                for letter, pbox in sorted(_panel_boxes(labels, box).items()):
+                    img = f"figures/fig-{slug(num)}{letter}.png"
+                    _render(page, pbox, w, h, dpi, out / img)
+                    fig["panels"].append({"id": f"{fid}{letter}", "label": letter, "caption": None,
+                                          "image": img, "bbox": [round(v, 1) for v in pbox]})
+        ex.figures.append(fig)
+        caption_starts[id(cap)] = fig
 
     # one pass in reading order: sections, paragraphs, equations, caption continuations
     sec: dict[str, Any] = {"id": "front", "number": None, "title": "front matter", "label": "front matter", "page": 1, "paras": [[]]}
@@ -366,9 +448,8 @@ def extract(pdf: Path, out: Path, options: dict[str, Any]) -> Extraction:
             if m and MATHY.search(m.group("body")) and len(m.group("body")) < 200:
                 num = m.group("num")
                 eid = unique_id(f"eq.{num}", eq_ids)
-                pad = 0.6 * ln.height
                 w, h = sizes[pno]
-                box = (max(0.0, ln.left - 6), max(0.0, ln.bottom - pad), min(w, ln.right + 6), min(h, ln.top + pad))
+                box = _equation_box(ln, lines, w, h)
                 img = f"equations/eq-{slug(eid[3:])}.png"
                 _render(doc[pno], box, w, h, dpi, out / img)
                 ex.equations.append({"id": eid, "number": num, "page": ln.page, "section": sec["id"], "text": m.group("body"),
