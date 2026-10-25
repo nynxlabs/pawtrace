@@ -5,7 +5,7 @@
     paper:  {id, title, authors, year, doi, version}
     rights:                       # the paper's license, access and the rules that follow (rights.py)
       license, license_url, copy_url, open_version, access, access_terms,
-      rules: {redistribute, quotes_in_spec, ai_tools: allowed|local-only|never}, permissions: [...]
+      rules: {redistribute, quotes_in_spec, ai_tools: allowed|local-only|never (new specs start at never)}, permissions: [...]
     policy:                       # code-use policy, set per paper up front
       when_silent: [authors-code, convention, author-question, deviation]   # preference order
       authors_code: {url, license, use: allowed | reference-only | off-limits}

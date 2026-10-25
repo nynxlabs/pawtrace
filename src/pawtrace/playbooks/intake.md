@@ -31,7 +31,9 @@ yet — see policy).
        are our own measurements and aren't covered by this rule.
      - `quotes_in_spec` — short quotes with section citations in `spec.yaml`: yes by
        default. Set `false` if a license forbids even that; then paraphrase.
-     - `ai_tools` — may the paper go to AI tools? A published paper read for research:
+     - `ai_tools` — may the paper go to AI tools? New specs start at `never`, so nothing
+       reaches an AI tool until someone fills in the license and access and opens it up.
+       A published paper read for research:
        usually `allowed`, subject to the access license's text-mining/AI terms and the
        AI tool's data-training terms (use `local-only` if either is a problem). A
        manuscript under review (peer review, confidential drafts): **always `never`** —

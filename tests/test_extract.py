@@ -139,6 +139,11 @@ def seed_all(root: Path, capsys: pytest.CaptureFixture[str]) -> dict[str, Any]:
     return res
 
 
+def allow_ai(root: Path) -> None:
+    """New specs start at ai_tools: never; tests that run a command backend open it up."""
+    edit_spec(root, lambda spec: spec["rights"]["rules"].update(ai_tools="allowed"))
+
+
 @pytest.fixture
 def root(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> Path:
     return make_project(tmp_path, capsys)
@@ -324,6 +329,7 @@ def test_never_ai_tools_refuses_the_command_backend(root, toy_pdf, capsys):
 
 
 def test_command_backend_reads_markdown(root, toy_pdf, tmp_path, capsys):
+    allow_ai(root)
     converter = write_converter(tmp_path / "converter.py")
     edit_config(root, command=[sys.executable, str(converter), "{pdf}", "{out}"])
     code, man = jcall(capsys, root, "extract", "run", "toy", str(toy_pdf), "--backend", "command")
@@ -343,6 +349,7 @@ def test_command_backend_reads_markdown(root, toy_pdf, tmp_path, capsys):
 
 
 def test_failing_command_exits_2(root, toy_pdf, tmp_path, capsys):
+    allow_ai(root)
     failing = tmp_path / "fail.py"
     failing.write_text("import sys\nsys.exit(3)\n")
     edit_config(root, command=[sys.executable, str(failing), "{pdf}", "{out}"])
@@ -352,6 +359,7 @@ def test_failing_command_exits_2(root, toy_pdf, tmp_path, capsys):
 
 
 def test_formula_command_fills_latex(root, toy_pdf, tmp_path, capsys):
+    allow_ai(root)
     formula = tmp_path / "formula.py"
     formula.write_text("print(" + repr(LATEX) + ")\n")
     edit_config(root, formula_command=[sys.executable, str(formula), "{image}"])
@@ -400,3 +408,8 @@ def test_init_gitignores_the_paper_source_folder(tmp_path, capsys):
     lines = (root / ".gitignore").read_text().splitlines()
     assert "papers/*/source/" in lines
     assert "runs/" in lines
+
+
+def test_new_spec_starts_with_ai_tools_never(root):
+    spec = yaml.safe_load((root / "papers" / "toy" / "spec.yaml").read_text())
+    assert spec["rights"]["rules"]["ai_tools"] == "never"
