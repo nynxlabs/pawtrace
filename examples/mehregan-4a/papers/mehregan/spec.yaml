@@ -13,6 +13,20 @@ paper:
   doi: "10.1109/MobileCloud62079.2024.00013"
   version: "published (IEEE MobileCloud 2024)"   # no open version found
 
+# Paper rights — set now, before anyone (person or agent) works from the paper.
+rights:
+  license: publisher-copyright   # IEEE conference paper
+  license_url: ""
+  copy_url: "https://doi.org/10.1109/MobileCloud62079.2024.00013"
+  open_version: "none found"
+  access: unknown           # how the copy was obtained wasn't recorded in rl-adaptive-dbs
+  access_terms: ""
+  rules:
+    redistribute: false     # no PDF, text or figure crops in git; digitizations are our own measurements
+    quotes_in_spec: true
+    ai_tools: allowed       # published paper read for research
+  permissions: []
+
 # Code-use policy, set now — not mid-project.
 policy:
   when_silent: [authors-code, convention, author-question, deviation]   # preference order when the paper is silent

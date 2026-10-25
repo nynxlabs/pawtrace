@@ -3,12 +3,17 @@
 ``spec.yaml`` — written at intake, before any build::
 
     paper:  {id, title, authors, year, doi, version}
+    rights:                       # the paper's license, access and the rules that follow (rights.py)
+      license, license_url, copy_url, open_version, access, access_terms,
+      rules: {redistribute, quotes_in_spec, ai_tools: allowed|local-only|never}, permissions: [...]
     policy:                       # code-use policy, set per paper up front
       when_silent: [authors-code, convention, author-question, deviation]   # preference order
       authors_code: {url, license, use: allowed | reference-only | off-limits}
       off_limits: ["<source we must not open>", ...]
     items:                        # every equation, parameter, protocol detail, panel, claim
       - {id, kind, text, section, status: stated|missing|ambiguous|contradicted, value?, ledger?}
+      # items seeded by `pawtrace extract seed` start as status: candidate (+ extracted: {...})
+      # until someone reads them against the paper and sets a real status
 
 ``ledger.yaml`` — every gap fill, interpretation and deviation, with its source and reason::
 
@@ -19,7 +24,8 @@
     questions:                    # author questions
       - {id, items: [...], question, status: open|sent|answered, answer?}
 
-Lint enforces the lessons from rl-adaptive-dbs: a policy exists before any build;
+Lint enforces the lessons from rl-adaptive-dbs: a policy and the paper's rights exist
+before any build;
 every missing/ambiguous item has a ledger entry; ledger sources respect the
 policy; deviations are adopted only after testing on fresh seeds.
 """
@@ -30,8 +36,11 @@ from typing import Any
 
 import yaml
 
+from . import rights as rts
+
 ITEM_KINDS = ("equation", "parameter", "protocol", "architecture", "data", "panel", "claim", "foundation", "other")
 ITEM_STATUS = ("stated", "missing", "ambiguous", "contradicted")
+CANDIDATE = "candidate"   # seeded by extraction, not reviewed yet — never counts as stated
 ENTRY_TYPES = ("gap-fill", "interpretation", "deviation")
 ENTRY_SOURCES = ("paper", "authors-code", "convention", "cited-work", "author", "deviation")
 ENTRY_STATUS = ("proposed", "testing", "adopted", "rejected", "superseded")
@@ -77,6 +86,7 @@ class Paper:
             "title": (self.spec.get("paper") or {}).get("title"),
             "items": len(items),
             "items_by_status": by_status,
+            "candidates": sum(1 for i in items if i.get("status") == CANDIDATE),
             "ledger_entries": len(entries),
             "deviations_adopted": [e["id"] for e in entries if e.get("type") == "deviation" and e.get("status") == "adopted"],
             "open_items": open_items,
@@ -98,6 +108,7 @@ class Paper:
                 add("warn", f"paper.{key} is empty")
         if not pmeta.get("version"):
             add("warn", "paper.version is empty (which version was read: preprint, published, erratum)")
+        rts.lint_rights(self.spec, add)
         policy = self.spec.get("policy")
         if not policy:
             add("error", "no policy: set the code-use policy at intake, before any build")
@@ -121,8 +132,12 @@ class Paper:
                 add("warn", f"item {iid} is the template placeholder — replace it with the paper's items")
             if i.get("kind") not in ITEM_KINDS:
                 add("warn", f"item {iid}: kind {i.get('kind')!r} not in {', '.join(ITEM_KINDS)}")
+            if i.get("kind") == "foundation":
+                rts.lint_foundation_rights(i, add)
             st = i.get("status")
-            if st not in ITEM_STATUS:
+            if st == CANDIDATE:
+                add("warn", f"item {iid} is an unreviewed candidate from extraction — check it against the paper, then set status ({', '.join(ITEM_STATUS)})")
+            elif st not in ITEM_STATUS:
                 add("error", f"item {iid}: status must be one of {', '.join(ITEM_STATUS)}")
             if st == "stated" and not i.get("section"):
                 add("warn", f"item {iid}: stated but no section — say where the paper states it")
@@ -177,6 +192,7 @@ class Paper:
         meta = [f"{k}: {p[k]}" for k in ("authors", "year", "doi", "version") if p.get(k)]
         if meta:
             lines += [" · ".join(str(m) for m in meta), ""]
+        lines += rts.render_lines(self.spec)
         pol = self.spec.get("policy") or {}
         if pol:
             lines += ["## code-use policy", ""]
@@ -189,7 +205,10 @@ class Paper:
                 lines.append(f"- off limits: {o}")
             lines.append("")
         s = self.summary()
-        lines += ["## spec", "", f"{s['items']} items — " + ", ".join(f"{v} {k}" for k, v in s["items_by_status"].items()), ""]
+        counts = ", ".join(f"{v} {k}" for k, v in s["items_by_status"].items())
+        if s["candidates"]:
+            counts += f", {s['candidates']} unreviewed candidates"
+        lines += ["## spec", "", f"{s['items']} items — {counts}", ""]
         lines += ["| id | kind | status | section | text | ledger |", "| --- | --- | --- | --- | --- | --- |"]
         by_item: dict[str, list[str]] = {}
         for e in self.entries:

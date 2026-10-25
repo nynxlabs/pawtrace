@@ -29,9 +29,25 @@ def _policy(use: str = "reference-only", off_limits: list[str] | None = None, wi
     return pol
 
 
-def _spec(items: list[dict[str, Any]], policy: dict[str, Any] | None = None) -> dict[str, Any]:
+def _rights(**kw: Any) -> dict[str, Any]:
+    r: dict[str, Any] = {
+        "license": "CC-BY-4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "copy_url": "https://arxiv.org/abs/0000.00000",
+        "open_version": "https://arxiv.org/abs/0000.00000",
+        "access": "open-access",
+        "access_terms": "",
+        "rules": {"redistribute": False, "quotes_in_spec": True, "ai_tools": "allowed"},
+        "permissions": [],
+    }
+    r.update(kw)
+    return r
+
+
+def _spec(items: list[dict[str, Any]], policy: dict[str, Any] | None = None, rights: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "paper": {"id": "demo", "title": "A Demo Paper", "authors": ["A. Author"], "year": 2024, "doi": "10.0/x", "version": "published"},
+        "rights": _rights() if rights is None else rights,
         "policy": _policy() if policy is None else policy,
         "items": items,
     }
