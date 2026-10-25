@@ -30,6 +30,7 @@ CORE = (
 )
 
 OPTIONAL = (
+    Module("extract", "intake", "text by section, equations and figure panels from the paper PDF into a local, gitignored source/ folder; seeds candidate spec items", implemented=True),
     Module("foundations", "build", "foundation survey, license check, reuse/port/rebuild route, reference-equivalence tests"),
     Module("scaffolding", "build", "interfaces, config wiring, spec tests for the paper's environment/model/controller", depends=("foundations",)),
     Module("sensitivity", "finding what matters", "sweep each filled gap, show which panels move"),
@@ -53,7 +54,7 @@ MODULES: dict[str, Module] = {m.name: m for m in (*CORE, *OPTIONAL)}
 
 PROFILES: dict[str, tuple[str, ...]] = {
     "minimal": (),
-    "standard": ("foundations", "scaffolding", "seed-stats", "dependency-graph", "paper-tables"),
+    "standard": ("extract", "foundations", "scaffolding", "seed-stats", "dependency-graph", "paper-tables"),
     "strict": tuple(m.name for m in OPTIONAL),
 }
 

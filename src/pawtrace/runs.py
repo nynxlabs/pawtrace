@@ -5,7 +5,7 @@ say what produced it::
 
     {"id", "panel", "source": "run" | "import", "seed", "config_name", "config",
      "config_hash", "git": {"commit", "dirty", "diff_sha256"}, "created_at",
-     "imported_from"?, "data": PanelData JSON, "checks": [{"at", "gates_hash", "report"}]}
+     "imported_from"?, "extraction"?, "data": PanelData JSON, "checks": [{"at", "gates_hash", "report"}]}
 
 Run ids are ``<commit12>-<confighash8>-s<seed>`` (``+d<diff8>`` when the tree was
 dirty), so the same code + config + seed maps to the same record. Imported
@@ -108,6 +108,7 @@ class RunStore:
         config: dict[str, Any],
         git: dict[str, Any],
         elapsed_s: float | None = None,
+        extraction: str | None = None,
     ) -> dict[str, Any]:
         ch = config_hash(config)
         rec = {
@@ -124,6 +125,8 @@ class RunStore:
             "data": data.to_json(),
             "checks": [],
         }
+        if extraction:   # the paper extraction (source/manifest.json) in place when this ran
+            rec["extraction"] = extraction
         prev = self.path(panel_id, rec["id"])
         if prev.exists():  # same commit + config + seed: keep the check history, count the rerun
             old = json.loads(prev.read_text())
