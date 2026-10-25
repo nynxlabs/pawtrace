@@ -13,7 +13,7 @@ Set at intake, in ``spec.yaml``, before anyone (person or agent) works from the 
       rules:
         redistribute: false     # PDF, full text, extracted text/equations, figure crops may be committed or published
         quotes_in_spec: true    # short quotes with section citations in spec.yaml
-        ai_tools: allowed       # allowed | local-only | never
+        ai_tools: never         # allowed | local-only | never (new specs start at never)
       permissions: []           # [{from, date, grants: [redistribute | ai-tools | figures | ...], ref}]
 
 Lint enforces it: the block exists; ``redistribute`` is only true when the license or a

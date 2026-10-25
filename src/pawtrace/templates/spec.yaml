@@ -22,7 +22,7 @@ rights:
   rules:
     redistribute: false     # may the PDF, text, equations or figure crops be committed or published? only if the license allows (e.g. CC BY)
     quotes_in_spec: true    # short quotes with section citations in spec.yaml
-    ai_tools: allowed       # allowed | local-only | never — published paper read for research: usually allowed; under review: never
+    ai_tools: never         # allowed | local-only | never — starts locked; switch to allowed or local-only once license + access are filled (published paper read for research: usually allowed; under review: never)
   permissions: []           # author/publisher permissions: {from, date, grants: [redistribute, ai-tools, figures], ref}
 
 # Code-use policy, set now — not mid-project.
