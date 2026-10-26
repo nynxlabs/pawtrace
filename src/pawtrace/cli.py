@@ -789,7 +789,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("gates", parents=[common], help="list the gate library's metric ops and checks")
     s.set_defaults(fn=cmd_gates)
+
+    s = sub.add_parser("tui", help="terminal UI for people over the same files (needs the tui extra)")
+    s.add_argument("--project", help=f"project dir (default: nearest {CONFIG_NAME} upward)")
+    s.add_argument("--light", action="store_true", help="light theme (default: black background)")
+    s.set_defaults(fn=cmd_tui)
     return p
+
+
+def cmd_tui(args: argparse.Namespace) -> int:
+    proj = _project(args)
+    try:
+        from .tui import figure  # noqa: F401 — asks the terminal about graphics before Textual starts
+        from .tui.app import run
+    except ImportError as exc:
+        raise CliError(f"the TUI needs the tui extra (`uv sync --extra tui` or `pip install 'pawtrace[tui]'`): {exc}") from exc
+    return run(proj, light=args.light)
 
 
 def main(argv: list[str] | None = None) -> int:

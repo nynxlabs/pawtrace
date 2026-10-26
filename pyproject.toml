@@ -16,12 +16,15 @@ dependencies = [
 plot = ["matplotlib>=3.8"]
 # `extract` module, lightweight backend: PDFium (Apache-2.0 / BSD-3-Clause) — offline, no GPU
 extract = ["pypdfium2>=4.30", "pillow>=10"]
+# `pawtrace tui`: Textual, plus textual-image (LGPL-3.0, used unmodified) for figures over
+# kitty graphics / sixel with a half-block fallback
+tui = ["textual>=8", "textual-image>=0.8"]
 
 [project.scripts]
 pawtrace = "pawtrace.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "matplotlib>=3.8", "pypdfium2>=4.30", "pillow>=10"]
+dev = ["pytest>=8", "matplotlib>=3.8", "pypdfium2>=4.30", "pillow>=10", "textual>=8", "textual-image>=0.8"]
 
 [build-system]
 requires = ["hatchling"]
