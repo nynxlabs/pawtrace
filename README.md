@@ -122,7 +122,21 @@ pawtrace init | add-paper | modules | lint | spec show|render | extract run|show
          | seed-stats | prereg freeze|show|check | claim | release | claims | questions | playbook | gates
 ```
 
-## Worked example: Paper A Fig 4a
+## Worked examples
+
+Each example expresses testbed panels through the core and ships a `parity.py`
+that runs pawtrace's config gates and the original hand-coded gate functions side by
+side on every saved artifact, plus synthetic edge cases, and checks that every verdict
+matches (0 mismatches). They need a local testbed checkout and only read from it;
+its saved runs and paper digitizations are local artifacts (gitignored there), so without
+them `parity.py` exits 2 and its test is skipped. No paper data is committed here.
+
+| example | panels | what it shows |
+| --- | --- | --- |
+| `examples/paper-a-4a/` | Paper A Fig 4a | the full walk-through below: 13 gates on a training curve |
+| `examples/paper-a-2-5/` | Paper A Figs 2a, 2b, 5a, 5b | time-series panels (onset, suppression, half-drop time, shape r) and post-training evals with several conditions; parity also checks the verdicts each saved manifest recorded |
+
+### Paper A Fig 4a
 
 `examples/paper-a-4a/` expresses one testbed panel through the core: the
 panel's 13 gates as config, its WPD-refined digitization as the reference, and saved
