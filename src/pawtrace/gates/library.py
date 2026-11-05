@@ -357,16 +357,23 @@ def slice_mean(of: Any, start: int | None = None, stop: int | None = None) -> fl
 
 
 @op("pearson", refs=("a", "b"))
-def pearson(a: Any, b: Any, min_n: int = 4) -> float:
+def pearson(a: Any, b: Any, min_n: int = 4, trailing: str = "drop") -> float:
     """Pearson r of two vectors/series y.
 
     Trailing missing entries are dropped (an incomplete run hasn't reached them);
     a missing entry anywhere else makes r undefined (broken data, not a shorter run).
+    ``trailing: nan`` makes any missing entry undefined — for curves whose missing tail
+    means broken data (e.g. a smoothed trace a NaN has spread to), when the run's length
+    is checked separately.
     """
+    if trailing not in ("drop", "nan"):
+        raise ValueError("pearson: trailing must be drop or nan")
     va, vb = _vector(a, "pearson"), _vector(b, "pearson")
     n = min(va.size, vb.size)
     va, vb = va[:n], vb[:n]
     ok = np.isfinite(va) & np.isfinite(vb)
+    if trailing == "nan" and not ok.all():
+        return NAN
     last = int(np.flatnonzero(ok)[-1]) + 1 if ok.any() else 0
     if not ok[:last].all():
         return NAN

@@ -33,6 +33,7 @@ def test_pearson_trailing_vs_interior_missing():
     assert L.pearson(a, b) > 0.9  # trailing missing: shorter run
     a2 = np.array([1.0, np.nan, 3, 4, 5, 6])
     assert math.isnan(L.pearson(a2, b))  # interior missing: broken data
+    assert math.isnan(L.pearson(a, b, trailing="nan"))  # strict: any missing entry
 
 
 def test_half_crossing_and_max_abs():
