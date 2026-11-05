@@ -39,7 +39,7 @@ Semantics worth knowing:
   identical because our side is missing either way).
 - `required: false` gates are reported but don't count toward the panel verdict.
 - `gates_hash` covers metric + gate definitions but not `why`/`history` notes — the
-  preregistration module will freeze it.
+  preregistration module freezes it.
 
 ## Defaults for the open questions (oct 19 2026)
 
@@ -85,9 +85,38 @@ when `ai_tools: never` unless `--confirm-no-ai` is passed. Lint errors when rest
 content (anything under `papers/<paper>/source/`, or any PDF in the paper folder) is
 tracked or not ignored by git.
 
+## Seed stats, preregistration, panel claims, author questions (nov 5 2026)
+
+Four modules that need no compute: they read run records, the panel YAML and the ledger.
+
+| question | default | why |
+| --- | --- | --- |
+| seed-stats: which check counts | each record's latest stored check, only when its `gates_hash` is the panel's current one; nothing is re-run or re-checked | stale verdicts from older gates must not mix into a rate; `check --all` refreshes them, `--any-gates` opts in |
+| seed-stats: one seed, several records | the newest record per seed counts, older ones are listed as superseded | a rerun must not count twice |
+| seed-stats: grouping | per `config_name` (imports without one: `(imported)`); warnings when a group mixes commits, config hashes or gate versions | `paper_only` and `adopted` rates are different claims |
+| seed-stats: interval | Wilson score, 95% by default, pure Python (`statistics.NormalDist`) | behaves at k = 0 and k = n, unlike the normal approximation; no scipy |
+| seed-stats: guidance | the half-width now, and seeds needed for `--target-halfwidth` at the observed rate | the module summary's "seed-count guidance", without a power analysis |
+| preregistration: what's frozen | gate config + `gates_hash`, the run config + `config_hash`, the adopted deviations + their hash, reserved seeds, git commit | the design said "gates + deviation list"; the config and seeds are what the final runs use, so they're frozen too |
+| preregistration: where | `papers/<paper>/prereg/<panel>.yaml`, written by the tool (a hash check catches hand edits), meant to be committed | a plain, diffable record next to the panel |
+| preregistration: re-freezing | needs `--reason`; the old freeze moves to `history` | gate changes after the freeze stay on the record |
+| preregistration: fresh seeds | `freeze` refuses seeds already in run records or a ledger `tested_on` (`--force` overrides and is recorded) | a final seed must not have been seen during development |
+| preregistration: final runs | records with `source: run`, a reserved seed, created after `frozen_at`, with the frozen config hash | imports can't prove when they ran, so they only warn |
+| preregistration: lint | with the module on, `pawtrace lint` includes `prereg check` | one command shows everything that's wrong |
+| panel-claims: where | `paths.claims` if set; else `<git common dir>/pawtrace-claims/<project path>/`; else `.pawtrace-claims/` | parallel agents usually work in separate worktrees of one repo; the common dir is the one place they all share, and claims (coordination state) stay out of commits |
+| panel-claims: concurrency | publish with `os.link` from a complete temp file (atomic, fails if the claim exists); expired claims are broken under an `O_EXCL` `.break` guard | no half-written files, exactly one winner |
+| panel-claims: liveness | an expiry time only (default 4h, `--ttl`, or `never`); the holder renews by claiming again | no process watching ("a tool, not a harness") |
+| author-questions: statuses | `open`, `answered-by-us`, `asked`, `answered`; the old `sent` still reads as `asked` | the brief's four states; existing ledgers keep working |
+| author-questions: core vs module | id / status / item checks run in every lint (the ledger is core); `why`, dates, answers and panel checks only with the module on | a broken ledger is always an error; the stricter template rules are opt-in |
+| author-questions: output | send-ready markdown grouped by paper, then by panel; open questions by default; `--write` → `QUESTIONS.md` (generated, deterministic) | a template over the ledger, no generated prose; the content policy (e.g. parameters only) is the user's |
+| author-questions: SPEC.md | its `## author questions` section uses the same per-question renderer with every status | one rendering, not two that drift |
+
+Deferred: status-page columns for pass rates or claims (paper-tables and site-pages will
+read these modules); a `claims prune`; per-question send logs beyond `asked` / `to`.
+
 ## Not built yet
 
-17 of the 18 optional modules (extract is built). Next in the build order: sensitivity,
-preregistration, source log, dependency graph; then paper tables + release bundle. Module dependencies in
+13 of the 18 optional modules (extract, seed-stats, preregistration, panel-claims and
+author-questions are built). Next in the build order: sensitivity, source log,
+dependency graph; then paper tables + release bundle. Module dependencies in
 `modules.py` (scaffolding → foundations, dependency-graph → foundations, paper-tables →
 seed-stats) are a first proposal.

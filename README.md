@@ -8,8 +8,8 @@ not a framework: the paper's model code (simulators, controllers, training loops
 in your project's repo; pawtrace records what the paper says, how each gap was filled,
 what ran, and whether the results match the paper's figures.
 
-Work in progress (v0.1: the core plus the extract module). Scope and design notes:
-`docs/design.md`.
+Work in progress (v0.1: the core plus the extract, seed-stats, preregistration,
+panel-claims and author-questions modules). Scope and design notes: `docs/design.md`.
 
 ## What's in the core
 
@@ -27,9 +27,9 @@ Work in progress (v0.1: the core plus the extract module). Scope and design note
 
 Optional modules (extract, sensitivity, preregistration, source log, dependency graph,
 seed stats, paper tables, …) are listed by `pawtrace modules` and turned on in
-`pawtrace.yaml`; profiles `minimal`, `standard`, `strict` are presets. In v0.1 only the
-core and the extract module are built; the rest are registered so configs can already
-name them.
+`pawtrace.yaml`; profiles `minimal`, `standard`, `strict` are presets. Built so far:
+the core plus extract, seed-stats, preregistration, panel-claims and author-questions;
+the rest are registered so configs can already name them.
 
 ## Extraction (optional module)
 
@@ -62,6 +62,48 @@ uv run pawtrace extract seed smith2024 --kind equation --dry-run
 - **rights:** extraction refuses without a `rights:` block. Extracted content stays local
   unless the paper's license or a recorded permission allows it.
 
+## Seed stats, preregistration, panel claims, author questions (optional modules)
+
+Turn each on with `pawtrace modules enable <name>`. All four read and write plain files
+and never run anything themselves.
+
+```bash
+uv run pawtrace seed-stats smith2024/fig2 --target-halfwidth 0.1   # pass rates across seeds
+uv run pawtrace prereg freeze smith2024/fig2 --seeds 100-119      # before the final runs
+uv run pawtrace prereg check                                      # also part of `pawtrace lint`
+uv run pawtrace claim smith2024/fig2 --by agent-a --task "tune the window gate" --ttl 2h
+uv run pawtrace claims
+uv run pawtrace release smith2024/fig2 --by agent-a
+uv run pawtrace questions --write                                 # QUESTIONS.md, send-ready
+```
+
+- **seed-stats:** per panel and config, from the run records' latest checks: each seed's
+  verdict (the newest record per seed), the pass rate k/n with a Wilson interval, per-gate
+  pass rates, and n / mean / std / min / median / max of every scalar metric. Records last
+  checked with other gates than the panel has now are left out (`--any-gates` keeps them);
+  `--target-halfwidth` says how many seeds would narrow the interval that far; `--final`
+  counts only preregistered final runs.
+- **preregistration:** `prereg freeze` writes `papers/<paper>/prereg/<panel>.yaml` (commit
+  it): the gate config and its `gates_hash`, the run config, the adopted deviations, and a
+  set of fresh seeds reserved for the final runs. It refuses seeds already used in run
+  records or in a ledger entry's `tested_on`. Freezing again needs `--reason`, and the old
+  freeze stays in `history`. `prereg check` errors when the gates, config or deviations
+  changed after the freeze, a reserved seed was used before it, or a final run was checked
+  with other gates; it warns on runs outside the reserved seeds and on reserved seeds run
+  twice.
+- **panel-claims:** one lock file per panel, `{panel, by, task, claimed_at, expires_at}`.
+  A second live claim is refused (exit 1); your own claim renews; claims expire (default
+  4h) and the next claimer takes over. Files live in the git common dir
+  (`.git/pawtrace-claims/`), so every worktree of the repo sees the same claims; set
+  `paths.claims` to put them elsewhere. Writes are atomic (`os.link`), so two claimers
+  can't both win.
+- **author-questions:** questions live in each paper's `ledger.yaml` under `questions:`
+  (`question`, `why`, `items`, `panels`, `evidence`, `status: open | answered-by-us | asked
+  | answered`, `asked`, `to`, `answer`, `answer_source`). `pawtrace questions` renders them
+  grouped by paper and panel as markdown you can paste into an email (default: the open
+  ones; `--all`, `--status`). It's a template: what to ask is up to you. The
+  `## author questions` section of `SPEC.md` uses the same renderer.
+
 ## Quick start
 
 ```bash
@@ -76,7 +118,8 @@ Every command prints readable text, or JSON with `--json`. Exit codes: 0 ok / ga
 pass, 1 gates fail or lint errors, 2 bad input.
 
 ```text
-pawtrace init | add-paper | modules | lint | spec show|render | extract run|show|seed | panels | run | import | check | runs | overlay | status | playbook | gates
+pawtrace init | add-paper | modules | lint | spec show|render | extract run|show|seed | panels | run | import | check | runs | overlay | status
+         | seed-stats | prereg freeze|show|check | claim | release | claims | questions | playbook | gates
 ```
 
 ## Worked example: Paper A Fig 4a
