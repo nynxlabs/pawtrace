@@ -135,6 +135,10 @@ them `parity.py` exits 2 and its test is skipped. No paper data is committed her
 | --- | --- | --- |
 | `examples/paper-a-4a/` | Paper A Fig 4a | the full walk-through below: 13 gates on a training curve |
 | `examples/paper-a-2-5/` | Paper A Figs 2a, 2b, 5a, 5b | time-series panels (onset, suppression, half-drop time, shape r) and post-training evals with several conditions; parity also checks the verdicts each saved manifest recorded |
+| `examples/paper-b-3-4/` | Paper B Figs 3, 4 | a distribution checked against the paper's box plot (`json-table` reference), and training curves with progress milestones and run-length guards; parity covers several hundred saved training runs, most of which fail the gates, so it shows fail verdicts as well as passes |
+
+Old gate keys that bundled two checks become two pawtrace gates (one check per gate);
+each `parity.py` maps them back before comparing.
 
 ### Paper A Fig 4a
 
