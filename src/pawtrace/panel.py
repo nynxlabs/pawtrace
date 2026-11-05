@@ -31,7 +31,7 @@ import yaml
 
 from . import formats
 from .data import PanelData, Series, coerce_panel_data, sort_and_bin
-from .gates import GateReport, evaluate, validate
+from .gates import GateReport, evaluate, gates_hash, validate
 from .project import Project
 
 
@@ -73,6 +73,10 @@ class Panel:
 
     def gate_cfg(self) -> dict[str, Any]:
         return {"metrics": self.cfg.get("metrics") or {}, "gates": self.cfg.get("gates") or {}}
+
+    def check_hash(self) -> str:
+        """The ``gates_hash`` a check of this panel records now (metric + gate definitions)."""
+        return gates_hash(self.gate_cfg())
 
     # -- references ------------------------------------------------------
     def references(self) -> dict[str, Reference]:

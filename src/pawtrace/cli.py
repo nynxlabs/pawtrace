@@ -464,6 +464,34 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _require_module(proj: Project, name: str) -> None:
+    if not proj.modules().get(name):
+        raise CliError(f"the {name} module is off — `pawtrace modules enable {name}`")
+
+
+def cmd_seed_stats(args: argparse.Namespace) -> int:
+    from . import seedstats as ss
+
+    proj = _project(args)
+    _require_module(proj, "seed-stats")
+    store = RunStore(proj.runs_dir)
+    pids = [proj.resolve_panel_id(args.panel)] if args.panel else proj.panel_ids()
+    if args.target_halfwidth is not None and not 0 < args.target_halfwidth < 0.5:
+        raise CliError("--target-halfwidth must be between 0 and 0.5 (e.g. 0.1 for ±10%)")
+    if not 0 < args.confidence < 1:
+        raise CliError("--confidence must be between 0 and 1 (e.g. 0.95)")
+    out = []
+    for pid in pids:
+        panel = Panel.load(proj, pid)
+        recs = store.list(pid)
+        st = ss.panel_stats(pid, recs, gates_hash=None if args.any_gates else panel.check_hash(),
+                            config=args.config, include_stale=args.any_gates, confidence=args.confidence,
+                            target_halfwidth=args.target_halfwidth)
+        out.append(st)
+    _emit(args, {"panels": out}, "\n".join(ss.format_text(st) for st in out) or "no panels")
+    return 0
+
+
 def cmd_playbook(args: argparse.Namespace) -> int:
     base = resources.files("pawtrace") / "playbooks"
     if not args.stage:
@@ -578,6 +606,14 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("status", parents=[common], help="generated status page (spec, ledger, panel verdicts)")
     s.add_argument("--write", action="store_true", help="write it to paths.status")
     s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("seed-stats", parents=[common], help="seed-stats module: pass rates across seeds with confidence intervals, per gate and metric")
+    s.add_argument("panel", nargs="?", help="paper/panel or a unique panel id (default: every panel)")
+    s.add_argument("--config", help="only this config name (default: each config separately)")
+    s.add_argument("--any-gates", action="store_true", help="count records last checked with other gates too (default: only the panel's current gates_hash)")
+    s.add_argument("--confidence", type=float, default=0.95, help="interval confidence (default 0.95)")
+    s.add_argument("--target-halfwidth", type=float, help="seed-count guidance: seeds needed for this CI half-width at the observed rate (e.g. 0.1)")
+    s.set_defaults(fn=cmd_seed_stats)
 
     s = sub.add_parser("playbook", parents=[common], help="print a stage's agent/person playbook")
     s.add_argument("stage", nargs="?")
