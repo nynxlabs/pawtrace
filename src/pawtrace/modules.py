@@ -37,7 +37,7 @@ OPTIONAL = (
     Module("text-claims", "finding what matters", "numeric claims from the paper's text become gates"),
     Module("digitization-error", "finding what matters", "reading precision feeds gate tolerances"),
     Module("seed-stats", "finding what matters", "pass rates across seeds with Wilson intervals, per gate and metric, seed-count guidance", implemented=True),
-    Module("preregistration", "honesty", "gates + deviation list frozen (hashed) before final runs"),
+    Module("preregistration", "honesty", "gates, run config, deviation list and reserved seeds frozen (hashed) before final runs; runs checked against it", implemented=True),
     Module("source-log", "honesty", "what each agent/person read; blocks off-limits sources"),
     Module("paper-versions", "honesty", "version, errata, follow-up papers"),
     Module("dependency-graph", "change", "foundation change → affected panels re-checked", depends=("foundations",)),

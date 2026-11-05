@@ -191,7 +191,17 @@ def cmd_lint(args: argparse.Namespace) -> int:
                 problems += Panel.load(proj, pid).lint()
             except (PanelError, ProjectError, yaml.YAMLError) as exc:
                 problems.append({"level": "error", "panel": pid, "message": str(exc)})
-    missing = mod.missing_dependencies(proj.modules())
+    state = proj.modules()
+    if state.get("preregistration"):
+        from . import prereg
+
+        for p in papers:
+            for pid in proj.panel_ids(p):
+                try:
+                    problems += prereg.check(proj, pid)["problems"]
+                except (prereg.PreregError, PanelError, ProjectError, yaml.YAMLError) as exc:
+                    problems.append({"level": "error", "panel": pid, "message": f"preregistration: {exc}"})
+    missing = mod.missing_dependencies(state)
     for m, miss in missing.items():
         problems.append({"level": "error", "project": proj.name, "message": f"module {m} needs {', '.join(miss)}"})
     for m, on in proj.modules().items():
@@ -484,12 +494,72 @@ def cmd_seed_stats(args: argparse.Namespace) -> int:
     for pid in pids:
         panel = Panel.load(proj, pid)
         recs = store.list(pid)
+        note = None
+        if args.final:
+            from . import prereg
+
+            pr = prereg.load(proj, pid)
+            if pr is None:
+                raise CliError(f"--final needs a preregistration for {pid} — `pawtrace prereg freeze {pid} --seeds A-B`")
+            recs = prereg.final_records(pr, recs)
+            note = f"final runs only: reserved seeds {prereg.format_seeds(pr['seeds']['reserved'])}, after {pr['frozen_at']}"
         st = ss.panel_stats(pid, recs, gates_hash=None if args.any_gates else panel.check_hash(),
                             config=args.config, include_stale=args.any_gates, confidence=args.confidence,
                             target_halfwidth=args.target_halfwidth)
+        if note:
+            st["hints"].insert(0, note)
         out.append(st)
     _emit(args, {"panels": out}, "\n".join(ss.format_text(st) for st in out) or "no panels")
     return 0
+
+
+def cmd_prereg(args: argparse.Namespace) -> int:
+    from . import prereg
+
+    proj = _project(args)
+    _require_module(proj, "preregistration")
+    try:
+        if args.action == "freeze":
+            if not args.panel or not args.seeds:
+                raise CliError("prereg freeze needs a panel and --seeds (e.g. --seeds 100-119)")
+            out, rec = prereg.freeze(proj, args.panel, args.seeds, config_name=args.config, reason=args.reason, force=args.force)
+            text = (f"wrote {out}\n  {rec['panel']}: gates {rec['gates_hash']}, config {rec['config_name']}, "
+                    f"reserved seeds {rec['seeds']['reserved']}, {len(rec['deviations'])} adopted deviation(s)")
+            if rec.get("forced_seeds"):
+                text += f"\n  warning: --force reserved already-used seeds {rec['forced_seeds']} (recorded in the file)"
+            if rec["git"].get("dirty"):
+                text += "\n  warning: the tree is dirty — commit the panel config and this file before the final runs"
+            text += "\nnext: commit it, then run the final seeds (`pawtrace run <panel> --seed …`), then `pawtrace prereg check`"
+            _emit(args, {"wrote": str(out), "prereg": rec}, text)
+            return 0
+        if args.seeds or args.reason or args.force or args.config:
+            raise CliError(f"prereg {args.action} takes only a panel")
+        if args.action == "show":
+            if not args.panel:
+                raise CliError("prereg show needs a panel")
+            pid = proj.resolve_panel_id(args.panel)
+            rec = prereg.load(proj, pid)
+            if rec is None:
+                raise CliError(f"{pid} isn't preregistered — `pawtrace prereg freeze {pid} --seeds A-B`")
+            text = (f"{pid}: frozen {rec.get('frozen_at')} at {(rec.get('git') or {}).get('commit') or '?'}\n"
+                    f"  gates {rec.get('gates_hash')} ({len((rec.get('gate_config') or {}).get('gates') or {})} gates), "
+                    f"config {rec.get('config_name')} ({rec.get('config_hash')}), reserved seeds {(rec.get('seeds') or {}).get('reserved')}\n"
+                    f"  adopted deviations: {', '.join(str(d.get('id')) for d in rec.get('deviations') or []) or 'none'}")
+            for h in rec.get("history") or []:
+                text += f"\n  superseded: {h.get('frozen_at')} gates {h.get('gates_hash')}" + (f" ({h['reason']})" if h.get("reason") else "")
+            if rec.get("reason"):
+                text += f"\n  reason for this freeze: {rec['reason']}"
+            _emit(args, rec, text)
+            return 0
+        pids = [proj.resolve_panel_id(args.panel)] if args.panel else proj.panel_ids()
+        res = [prereg.check(proj, pid) for pid in pids]
+        if not args.panel:
+            res = [r for r in res if r["preregistered"]]
+        errors = sum(p["level"] == "error" for r in res for p in r["problems"])
+        _emit(args, {"panels": res, "errors": errors}, "\n".join(prereg.format_check(r) for r in res) or "no preregistered panels")
+        return 1 if errors else 0
+    except prereg.PreregError as exc:
+        raise CliError(str(exc)) from exc
 
 
 def cmd_playbook(args: argparse.Namespace) -> int:
@@ -611,9 +681,19 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("panel", nargs="?", help="paper/panel or a unique panel id (default: every panel)")
     s.add_argument("--config", help="only this config name (default: each config separately)")
     s.add_argument("--any-gates", action="store_true", help="count records last checked with other gates too (default: only the panel's current gates_hash)")
+    s.add_argument("--final", action="store_true", help="only final runs: reserved seeds after the preregistration (preregistration module)")
     s.add_argument("--confidence", type=float, default=0.95, help="interval confidence (default 0.95)")
     s.add_argument("--target-halfwidth", type=float, help="seed-count guidance: seeds needed for this CI half-width at the observed rate (e.g. 0.1)")
     s.set_defaults(fn=cmd_seed_stats)
+
+    s = sub.add_parser("prereg", parents=[common], help="preregistration module: freeze a panel's gates + config + reserved seeds before final runs; check runs against it")
+    s.add_argument("action", choices=["freeze", "show", "check"])
+    s.add_argument("panel", nargs="?", help="paper/panel or a unique panel id (check: default every preregistered panel)")
+    s.add_argument("--seeds", help="freeze: fresh seeds reserved for the final runs, e.g. 100-119 or 100,101,105")
+    s.add_argument("--config", help="freeze: the run config the final runs use (default: run.default_config / adopted)")
+    s.add_argument("--reason", help="freeze: why (required to supersede an earlier freeze; the old one moves to history)")
+    s.add_argument("--force", action="store_true", help="freeze: reserve seeds even if already used (recorded in the file)")
+    s.set_defaults(fn=cmd_prereg)
 
     s = sub.add_parser("playbook", parents=[common], help="print a stage's agent/person playbook")
     s.add_argument("stage", nargs="?")
