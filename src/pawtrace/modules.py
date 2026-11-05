@@ -43,7 +43,7 @@ OPTIONAL = (
     Module("dependency-graph", "change", "foundation change → affected panels re-checked", depends=("foundations",)),
     Module("panel-claims", "change", "a lock file: a person or agent claims a panel before working on it; claims expire", implemented=True),
     Module("compute-budget", "change", "measured run times, batch cost before queueing"),
-    Module("author-questions", "output", "email-ready drafts from open ledger items (templates over the ledger)"),
+    Module("author-questions", "output", "send-ready author questions from the ledger, grouped by paper (a template, no generated prose)", implemented=True),
     Module("paper-tables", "output", "templated tables: text-only vs. code-informed, author questions, pass rates", depends=("seed-stats",)),
     Module("site-pages", "output", "per-panel pages templated from the plain files"),
     Module("release-bundle", "output", "tag, DOI, one-command rerun"),

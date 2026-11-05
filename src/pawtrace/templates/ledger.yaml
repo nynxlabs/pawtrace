@@ -14,6 +14,11 @@ entries: []
 #    decided: 2026-01-01
 questions: []
 #  - id: q.example
-#    items: [example.param]
-#    question: "..."
-#    status: open             # open | sent | answered
+#    question: "..."          # the text you'd send (`pawtrace questions` renders them send-ready)
+#    why: "..."               # what the answer would change
+#    items: [example.param]   # spec items it's about
+#    panels: []               # panels it affects
+#    evidence: []             # runs, overlays, ledger entries that show the problem
+#    status: open             # open | answered-by-us | asked | answered
+#    asked: 2026-01-01        # asked / answered: when it was sent (and `to:` whom)
+#    answer: ""               # answered / answered-by-us; answered-by-us also names answer_source

@@ -21,8 +21,9 @@
       - {id, item, type: gap-fill|interpretation|deviation, value, source, reason,
          status: proposed|testing|adopted|rejected|superseded,
          evidence: [...], tested_on: {seeds: [...], runs: [...]}, decided, history: [...]}
-    questions:                    # author questions
-      - {id, items: [...], question, status: open|sent|answered, answer?}
+    questions:                    # author questions (questions.py)
+      - {id, question, why, items: [...], panels: [...], evidence: [...],
+         status: open|answered-by-us|asked|answered (legacy: sent = asked), asked?, to?, answer?, answer_source?}
 
 Lint enforces the lessons from testbed: a policy and the paper's rights exist
 before any build;
@@ -90,7 +91,7 @@ class Paper:
             "ledger_entries": len(entries),
             "deviations_adopted": [e["id"] for e in entries if e.get("type") == "deviation" and e.get("status") == "adopted"],
             "open_items": open_items,
-            "open_questions": [q["id"] for q in self.questions if q.get("status", "open") != "answered"],
+            "open_questions": [q.get("id") for q in self.questions if q.get("status") not in ("answered", "answered-by-us")],
         }
 
     def lint(self) -> list[dict[str, str]]:
@@ -174,6 +175,9 @@ class Paper:
                     add("error", f"ledger {eid}: deviation adopted without tested_on (fresh seeds/runs) — propose, test, then adopt")
                 if not e.get("evidence"):
                     add("warn", f"ledger {eid}: adopted deviation has no evidence")
+        from .questions import lint_core
+
+        lint_core(self, add, ids)
         for i in self.items:
             if i.get("status") in ("missing", "ambiguous", "contradicted"):
                 live = [e for e in covered.get(i.get("id"), []) if e.get("status") not in ("rejected", "superseded")]
@@ -229,9 +233,9 @@ class Paper:
                     f"{_cell(e.get('value', ''))} | {_cell(e.get('reason', ''))} |"
                 )
         if self.questions:
-            lines += ["", "## author questions", ""]
-            for q in self.questions:
-                lines.append(f"- **{q.get('id')}** ({q.get('status', 'open')}): {q.get('question')}")
+            from .questions import spec_lines
+
+            lines += ["", "## author questions", ""] + spec_lines(self)
         if s["open_items"]:
             lines += ["", "## open gaps", ""] + [f"- {i}" for i in s["open_items"]]
         return "\n".join(lines) + "\n"
