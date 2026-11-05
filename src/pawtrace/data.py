@@ -64,8 +64,11 @@ class Series:
 
     @classmethod
     def from_y(cls, y: Any, *, x0: float = 0.0, dx: float = 1.0, **kw: Any) -> "Series":
-        """Series with evenly spaced x (``x0 + i*dx``), e.g. a per-step trace."""
-        y = np.asarray(y, dtype=float)
+        """Series with evenly spaced x (``x0 + i*dx``), e.g. a per-step trace.
+
+        A scalar (a count, a flag) becomes a one-sample series at ``x0``.
+        """
+        y = np.atleast_1d(np.asarray(y, dtype=float))
         return cls(x=x0 + dx * np.arange(y.size, dtype=float), y=y, **kw)
 
     def to_json(self) -> dict[str, Any]:

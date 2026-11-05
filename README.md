@@ -19,7 +19,7 @@ panel-claims and author-questions modules). Scope and design notes: `docs/design
 | panel contract | `papers/<paper>/panels/<panel>.yaml` | names your function `fn(config, seed) -> data`, with a `paper_only` and an `adopted` config |
 | run records | `runs/<paper>/<panel>/<id>.json` (gitignored) | one JSON per run, keyed by commit + config hash + seed |
 | gates | `metrics:` + `gates:` in the panel YAML | a shared library of ops and checks; each panel's gates are config with explicit tolerances and a `why` |
-| digitization formats | `references:` in the panel YAML | `curves-json`, `wpd-json`, `wpd-csv`, `engauge-csv`, `table-csv` (bars/tables) |
+| digitization formats | `references:` in the panel YAML | `curves-json`, `wpd-json`, `wpd-csv`, `engauge-csv`, `table-csv` and `json-table` (bars/tables) |
 | overlays | `pawtrace overlay` | the run and the digitized paper on the same axes, versioned PNGs |
 | status | `pawtrace status --write` | a generated status page — never hand-edited |
 | playbooks | `pawtrace playbook <stage>` | step-by-step instructions per stage that a person or an agent can follow alone |

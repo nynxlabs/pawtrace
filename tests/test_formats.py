@@ -206,3 +206,22 @@ def test_formats_extra_imports_without_formats_first() -> None:
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=120)
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip() == "ok"
+
+
+# --- JSON table ---------------------------------------------------------------
+
+
+def test_json_table_groups(tmp_path: Path) -> None:
+    from pawtrace.formats import read
+
+    p = tmp_path / "box.json"
+    p.write_text(json.dumps({"note": "x", "groups": {"off": {"q1": 1.5, "median": 2, "src": "a"}, "on": {"q1": 3, "median": 4}}}))
+    series = read(p, "json-table", field="groups")
+    assert set(series) == {"off", "on"}
+    assert series["off"].x == ["q1", "median"] and series["off"].y.tolist() == [1.5, 2.0]
+    only = read(p, "json-table", field="groups", labels=["median"])
+    assert only["on"].x == ["median"]
+    with pytest.raises(ValueError):
+        read(p, "json-table", field="groups", labels=["q3"])
+    with pytest.raises(ValueError):
+        read(p, "json-table", field="nope")

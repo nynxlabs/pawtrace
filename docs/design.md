@@ -20,11 +20,14 @@ This file records how v0.1 implements the core and which defaults were picked.
 
 ## Gates as config
 
-A panel's `metrics:` build named values with **ops** (window means by real x, head/tail
-means, block means per episode/trial, resample at another series' x, within-block std,
-Pearson r, half-drop crossing, relative error, value at a label, arithmetic). `gates:`
-test them with **checks** (equals, less_than, at_least, at_most, in_range, rel_close,
-ratio_in_band, at_least_fraction, abs_diff_at_most, ordered, label_order). Names resolve
+A panel's `metrics:` build named values with **ops** (window means, stats, percentiles
+and fractions by real x, head/tail means, block means per episode/trial, resample at
+another series' x or onto an even grid, smoothing, progress from a start level toward an
+end level and the first x reaching a level, within-block std, Pearson r, half-drop
+crossing, relative error, value at a label, stats across several metrics, a
+precondition guard, arithmetic — elementwise on series too). `gates:` test them with
+**checks** (equals, less_than, at_least, at_most, in_range, rel_close, ratio_in_band,
+at_least_fraction, abs_diff_at_most, ordered, label_order). Names resolve
 as `run.<series>`, `ref.<reference>`, or a metric name. `pawtrace gates` lists them all.
 
 Semantics worth knowing:

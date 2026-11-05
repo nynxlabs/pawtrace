@@ -116,3 +116,100 @@ def test_gates_hash_ignores_notes():
     b = {"metrics": {}, "gates": {"g": {"check": "at_least", "value": 1, "min": 0, "why": "y", "history": [1]}}}
     c = {"metrics": {}, "gates": {"g": {"check": "at_least", "value": 1, "min": 0.1}}}
     assert gates_hash(a) == gates_hash(b) != gates_hash(c)
+
+
+# --- ops added for the Paper A Fig 2/5 and Paper B Fig 3/4 examples ---------
+
+
+def test_window_stat_percentile_and_window_fraction():
+    s = curve(np.arange(1.0, 101.0))  # 1..100 at x 0..99
+    assert L.window_stat(s, "percentile", q=25) == float(np.percentile(s.y, 25))
+    assert L.window_stat(s, "percentile", q=50) == L.window_stat(s, "median")
+    with pytest.raises(TypeError):
+        L.window_stat(s, "percentile")
+    assert L.window_fraction(s, lo=90, at_least=95.5) == 0.5  # x 90..99 -> y 91..100
+    assert L.window_fraction(s, hi=9, at_most=2) == 0.2
+    assert math.isnan(L.window_fraction(s, lo=500, at_least=0))
+    with pytest.raises(TypeError):
+        L.window_fraction(s, at_least=1, at_most=2)
+
+
+def test_smooth_shrink_edges():
+    s = curve([0.0, 0.0, 3.0, 0.0, 0.0])
+    pad = L.smooth(s, 3)
+    shrink = L.smooth(s, 3, edges="shrink")
+    assert pad.y.tolist() == [0.0, 1.0, 1.0, 1.0, 0.0]
+    assert shrink.y.tolist() == [0.0, 1.0, 1.0, 1.0, 0.0]
+    edge = L.smooth(curve([3.0, 0.0, 0.0, 0.0]), 4, edges="shrink")
+    # window i-2 .. i+1: first sample averages y[0:2] only
+    assert edge.y[0] == 1.5 and edge.y[1] == 1.0
+
+
+def test_on_grid_progress_first_x():
+    s = curve([10.0, 10.0, 6.0, 2.0, 2.0], x=[0.0, 1.0, 2.0, 3.0, 4.0])
+    g = L.on_grid(s, 0, 4, 9)  # x step 0.5
+    assert g.xf.tolist() == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
+    p = L.progress(g, start=10.0, end=2.0)
+    assert p.y[0] == 0.0 and p.y[-1] == 1.0
+    assert L.first_x(p, at_least=0.5) == 2.0  # y 6 is halfway from 10 to 2
+    assert math.isnan(L.first_x(p, at_least=1.5))
+    assert L.first_x(g, at_most=4.0) == 2.5
+    assert np.isnan(L.progress(g, start=10.0, end=2.0, direction="up").y).all()
+    assert np.isnan(L.progress(g, start=5.0, end=5.0).y).all()  # no movement: undefined
+    assert L.on_grid(s, 4, 6, 3).y.tolist() == [2.0, 2.0, 2.0]  # end value held past the data
+
+
+def test_elementwise_arithmetic_and_abs():
+    a = curve([1.0, 2.0, 3.0])
+    b = curve([1.0, 1.0, 0.0])
+    assert L.sub(3.0, 1.0) == 2.0 and isinstance(L.sub(3.0, 1.0), float)
+    d = L.sub(a, b)
+    assert isinstance(d, Series) and d.y.tolist() == [0.0, 1.0, 3.0]
+    r = L.ratio(a, b)
+    assert r.y[:2].tolist() == [1.0, 2.0] and math.isnan(r.y[2])
+    assert L.mul(a, 2.0).y.tolist() == [2.0, 4.0, 6.0]
+    with pytest.raises(ValueError):
+        L.sub(a, curve([1.0, 2.0, 3.0], x=[0.0, 1.0, 5.0]))
+    assert L.abs_(-2.5) == 2.5
+    assert L.abs_(L.sub(b, a)).y.tolist() == [0.0, 1.0, 3.0]
+
+
+def test_across_and_only_if():
+    assert L.across([3.0, 1.0, 2.0], "ptp") == 2.0
+    assert L.across([30.0, 25], "min") == 25.0
+    assert math.isnan(L.across([1.0, float("nan")], "mean"))
+    assert L.only_if(4.2, 500.0, min=500) == 4.2
+    assert math.isnan(L.only_if(4.2, 499.0, min=500))
+    assert np.isnan(L.only_if(curve([1.0, 2.0]), 1.0, min=2).y).all()
+
+
+def test_in_range_closed():
+    assert L.in_range(150.0, 150, 187.5)
+    assert not L.in_range(150.0, 150, 187.5, closed="right")
+    assert L.in_range(187.5, 150, 187.5, closed="right")
+    assert not L.in_range(187.5, 150, 187.5, closed="neither")
+
+
+def test_gate_config_with_new_ops():
+    run = curve([10.0, 10.0, 10.0, 7.0, 4.0, 4.0, 4.0])
+    cfg = {
+        "metrics": {
+            "pre": {"op": "window_mean", "of": "run.y", "hi": 2},
+            "late": {"op": "window_mean", "of": "run.y", "lo": 4},
+            "g": {"op": "on_grid", "of": "run.y", "lo": 2, "hi": 6, "n": 41},
+            "prog": {"op": "progress", "of": "g", "start": "pre", "end": "late", "direction": "down"},
+            "t50": {"op": "first_x", "of": "prog", "at_least": 0.5},
+            "levels": {"op": "across", "of": ["pre", "late", 99], "stat": "max"},
+        },
+        "gates": {
+            "t50_at_3": {"check": "abs_diff_at_most", "a": "t50", "b": 3.0, "max": 1e-9},
+            "max_is_99": {"check": "equals", "value": "levels", "expected": 99},
+        },
+    }
+    rep = evaluate(cfg, {"run.y": run})
+    assert rep.passed, rep.to_json()
+
+
+def test_from_y_scalar_is_one_sample():
+    s = Series.from_y(True)
+    assert len(s) == 1 and s.y.tolist() == [1.0] and s.xf.tolist() == [0.0]

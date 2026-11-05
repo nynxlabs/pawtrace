@@ -114,14 +114,52 @@ def window_mean(of: Series, lo: float | None = None, hi: float | None = None, cl
 
 
 @op("window_stat")
-def window_stat(of: Series, stat: str, lo: float | None = None, hi: float | None = None, closed: str = "both") -> float:
-    """min / max / median / std of y over an x window."""
+def window_stat(
+    of: Series,
+    stat: str,
+    lo: float | None = None,
+    hi: float | None = None,
+    closed: str = "both",
+    q: float | None = None,
+) -> float:
+    """min / max / median / std / mean / percentile (with ``q`` in 0-100) of y over an x window.
+
+    ``percentile`` uses numpy's default linear interpolation, so ``q: 25`` / ``q: 75``
+    are the usual box-plot quartiles of a sample.
+    """
     s = _series(of, "window_stat")
     y = s.y[_mask(s.xf, lo, hi, closed)]
     if not y.size:
         return NAN
+    if stat == "percentile":
+        if q is None:
+            raise TypeError("window_stat: stat percentile needs q (0-100)")
+        return float(np.percentile(y, float(q)))
     fns = {"min": np.min, "max": np.max, "median": np.median, "std": np.std, "mean": np.mean}
     return float(fns[stat](y))
+
+
+@op("window_fraction")
+def window_fraction(
+    of: Series,
+    lo: float | None = None,
+    hi: float | None = None,
+    closed: str = "both",
+    at_least: float | None = None,
+    at_most: float | None = None,
+) -> float:
+    """Fraction of samples in an x window with y >= at_least (or y <= at_most); NaN if empty.
+
+    E.g. the share of late episodes that ran into the step limit.
+    """
+    s = _series(of, "window_fraction")
+    if (at_least is None) == (at_most is None):
+        raise TypeError("window_fraction needs exactly one of at_least / at_most")
+    y = s.y[_mask(s.xf, lo, hi, closed)]
+    if not y.size:
+        return NAN
+    hit = y >= float(at_least) if at_least is not None else y <= float(at_most)  # type: ignore[arg-type]
+    return float(np.mean(hit))
 
 
 @op("head_mean")
@@ -190,14 +228,89 @@ def resample(of: Series, at: Series) -> Series:
 
 
 @op("smooth")
-def smooth(of: Series, k: int) -> Series:
-    """Centered k-point running mean with edge padding."""
+def smooth(of: Series, k: int, edges: str = "pad") -> Series:
+    """Centered k-point running mean (samples i - k//2 ... i - k//2 + k - 1).
+
+    ``edges: pad`` repeats the end samples to fill the window; ``edges: shrink``
+    averages only the samples that exist, so the window shrinks at the ends.
+    """
     s = _series(of, "smooth")
     y = s.y
+    k = int(k)
     if k <= 1 or y.size < 2:
         return Series(x=s.xf.copy(), y=y.copy())
-    padded = np.pad(y, (k // 2, k - 1 - k // 2), mode="edge")
-    return Series(x=s.xf.copy(), y=np.convolve(padded, np.ones(k) / k, mode="valid"))
+    if edges == "pad":
+        padded = np.pad(y, (k // 2, k - 1 - k // 2), mode="edge")
+        return Series(x=s.xf.copy(), y=np.convolve(padded, np.ones(k) / k, mode="valid"))
+    if edges != "shrink":
+        raise ValueError("smooth: edges must be pad or shrink")
+    n = y.size
+    csum = np.concatenate([[0.0], np.cumsum(y)])
+    idx = np.arange(n)
+    lo = np.clip(idx - k // 2, 0, n)
+    hi = np.clip(idx - k // 2 + k, 0, n)
+    return Series(x=s.xf.copy(), y=(csum[hi] - csum[lo]) / (hi - lo))
+
+
+@op("on_grid")
+def on_grid(of: Series, lo: float, hi: float, n: int) -> Series:
+    """`of` linearly interpolated at n evenly spaced x from lo to hi (both included).
+
+    Outside the series' x range the end values are held (numpy ``interp``), so a
+    digitized curve that stops short of ``hi`` stays flat there.
+    """
+    s = _series(of, "on_grid")
+    grid = np.linspace(float(lo), float(hi), int(n))
+    if len(s) == 0:
+        return Series(x=grid, y=np.full(grid.size, NAN))
+    return Series(x=grid, y=np.interp(grid, s.xf, s.y))
+
+
+@op("progress", refs=("of", "start", "end"))
+def progress(of: Series, start: float, end: float, direction: str | None = None) -> Series:
+    """How far each sample has moved from `start` toward `end`: (y - start) / (end - start).
+
+    0 = still at the start level, 1 = reached the end level, whichever way the curve
+    moves. ``direction: down`` / ``up`` require end < start / end > start; otherwise
+    (and when start ~= end) every value is NaN, so milestones only count when the
+    curve moves the expected way.
+    """
+    s = _series(of, "progress")
+    nan = Series(x=s.xf.copy(), y=np.full(len(s), NAN))
+    if not _finite(start, end):
+        return nan
+    a, b = float(start), float(end)
+    if abs(b - a) <= 1e-9 * max(abs(a), 1.0):
+        return nan
+    if direction == "down" and not b < a:
+        return nan
+    if direction == "up" and not b > a:
+        return nan
+    if direction not in (None, "up", "down"):
+        raise ValueError("progress: direction must be up or down")
+    return Series(x=s.xf.copy(), y=(s.y - a) / (b - a))
+
+
+@op("first_x")
+def first_x(
+    of: Series,
+    at_least: float | None = None,
+    at_most: float | None = None,
+    lo: float | None = None,
+    hi: float | None = None,
+) -> float:
+    """First x (inside an optional lo..hi window) where y >= at_least (or y <= at_most); NaN if never.
+
+    With :func:`progress`, ``at_least: 0.5`` is the time or episode at which a curve
+    has covered half its drop or rise.
+    """
+    s = _series(of, "first_x")
+    if (at_least is None) == (at_most is None):
+        raise TypeError("first_x needs exactly one of at_least / at_most")
+    m = _mask(s.xf, lo, hi, "both")
+    x, y = s.xf[m], s.y[m]
+    hit = np.flatnonzero(y >= float(at_least) if at_least is not None else y <= float(at_most))  # type: ignore[arg-type]
+    return float(x[hit[0]]) if hit.size else NAN
 
 
 @op("select")
@@ -319,30 +432,104 @@ def max_abs(of: Any) -> float:
 # ---------------------------------------------------------------------------
 
 
+def _elementwise(a: Any, b: Any) -> bool:
+    return isinstance(a, (Series, np.ndarray, list)) or isinstance(b, (Series, np.ndarray, list))
+
+
+def _arith(a: Any, b: Any, fn: Callable[[Any, Any], Any], opname: str) -> Any:
+    """Scalars give a float; a series or vector on either side works elementwise.
+
+    Two series must share the same x; the result keeps it. A scalar broadcasts.
+    """
+    if not _elementwise(a, b):
+        return float(fn(float(a), float(b)))
+    x = None
+    for v in (a, b):
+        if isinstance(v, Series):
+            if v.categorical:
+                raise TypeError(f"{opname}: label series aren't supported elementwise")
+            if x is not None and (x.size != v.xf.size or not np.array_equal(x, v.xf)):
+                raise ValueError(f"{opname}: series have different x (resample them onto one grid first)")
+            x = v.xf
+    va = a.y if isinstance(a, Series) else np.asarray(a, dtype=float)
+    vb = b.y if isinstance(b, Series) else np.asarray(b, dtype=float)
+    if va.ndim and vb.ndim and va.size != vb.size:
+        raise ValueError(f"{opname}: lengths differ ({va.size} vs {vb.size})")
+    with np.errstate(divide="ignore", invalid="ignore"):
+        out = np.asarray(fn(va, vb), dtype=float)
+    return Series(x=x.copy(), y=out) if x is not None else out
+
+
 @op("sub", refs=("a", "b"))
-def sub(a: float, b: float) -> float:
-    """a - b."""
-    return float(a) - float(b)
+def sub(a: Any, b: Any) -> Any:
+    """a - b (scalars; or elementwise for series on the same x / vectors)."""
+    return _arith(a, b, lambda p, q: p - q, "sub")
 
 
 @op("add", refs=("a", "b"))
-def add(a: float, b: float) -> float:
-    """a + b."""
-    return float(a) + float(b)
+def add(a: Any, b: Any) -> Any:
+    """a + b (scalars; or elementwise for series on the same x / vectors)."""
+    return _arith(a, b, lambda p, q: p + q, "add")
 
 
 @op("mul", refs=("a", "b"))
-def mul(a: float, b: float) -> float:
-    """a * b."""
-    return float(a) * float(b)
+def mul(a: Any, b: Any) -> Any:
+    """a * b (scalars; or elementwise for series on the same x / vectors)."""
+    return _arith(a, b, lambda p, q: p * q, "mul")
 
 
 @op("ratio", refs=("a", "b"))
-def ratio(a: float, b: float, eps: float = 1e-12) -> float:
-    """a / b; NaN when |b| < eps or either is missing."""
+def ratio(a: Any, b: Any, eps: float = 1e-12) -> Any:
+    """a / b; NaN when |b| < eps or either is missing (elementwise for series / vectors)."""
+    if _elementwise(a, b):
+        return _arith(a, b, lambda p, q: np.where(np.abs(q) < eps, NAN, p / q), "ratio")
     if not _finite(a, b) or abs(float(b)) < eps:
         return NAN
     return float(a) / float(b)
+
+
+@op("abs")
+def abs_(of: Any) -> Any:
+    """|value| (a scalar, or elementwise for a series / vector)."""
+    if isinstance(of, Series):
+        return Series(x=_series(of, "abs").xf.copy(), y=np.abs(of.y))
+    if isinstance(of, (np.ndarray, list)):
+        return np.abs(np.asarray(of, dtype=float))
+    return abs(float(of))
+
+
+@op("across")
+def across(of: list[Any], stat: str) -> float:
+    """mean / min / max / median / std / ptp (max - min) across several scalars.
+
+    ``of`` is a list of metric names or numbers, e.g. the pre-onset level of every
+    condition (``ptp`` = their spread) or ``[our_value, 25]`` with ``min`` for a cap.
+    Any missing entry makes the result NaN.
+    """
+    if not isinstance(of, (list, tuple)):
+        raise TypeError("across: of must be a list of metrics or numbers")
+    v = np.asarray([float(x) for x in of], dtype=float)
+    if not v.size or not np.all(np.isfinite(v)):
+        return NAN
+    fns = {"mean": np.mean, "min": np.min, "max": np.max, "median": np.median, "std": np.std, "ptp": np.ptp}
+    return float(fns[stat](v))
+
+
+@op("only_if", refs=("value", "of"))
+def only_if(value: Any, of: float, min: float | None = None, max: float | None = None) -> Any:  # noqa: A002
+    """`value` when the precondition metric `of` is within [min, max]; NaN otherwise.
+
+    E.g. late-window levels only count once the run reached the late window:
+    ``{op: only_if, value: late_mean, of: n_episodes, min: 500}``.
+    """
+    ok = _finite(of) and (min is None or float(of) >= float(min)) and (max is None or float(of) <= float(max))
+    if ok:
+        return value
+    if isinstance(value, Series):
+        return Series(x=value.x, y=np.full(len(value), NAN), kind=value.kind)
+    if isinstance(value, np.ndarray):
+        return np.full(value.shape, NAN)
+    return NAN
 
 
 # ---------------------------------------------------------------------------
@@ -381,9 +568,16 @@ def at_most(value: float, max: float) -> bool:  # noqa: A002
 
 
 @check("in_range", refs=("value",))
-def in_range(value: float, lo: float, hi: float) -> bool:
-    """lo <= value <= hi."""
-    return _finite(value) and float(lo) <= float(value) <= float(hi)
+def in_range(value: float, lo: float, hi: float, closed: str = "both") -> bool:
+    """lo <= value <= hi; ``closed: right`` makes it lo < value <= hi, ``left`` lo <= value < hi, ``neither`` both strict."""
+    if not _finite(value):
+        return False
+    v, a, b = float(value), float(lo), float(hi)
+    if closed not in ("both", "left", "right", "neither"):
+        raise ValueError("in_range: closed must be both, left, right or neither")
+    lo_ok = v >= a if closed in ("both", "left") else v > a
+    hi_ok = v <= b if closed in ("both", "right") else v < b
+    return lo_ok and hi_ok
 
 
 @check("rel_close", refs=("value", "ref"))

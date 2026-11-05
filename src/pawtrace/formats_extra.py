@@ -12,6 +12,8 @@ Registered on import (``formats.py`` imports this module at its bottom), so
   (shared-x columns, raw ``x`` blocks per curve, or a plain two-column file).
 - ``table-csv`` — a plain table (bar charts, tables): one ``bars`` series per
   value column, categorical x from a label column, optional error columns.
+- ``json-table`` — the same kind of table as nested JSON objects
+  (``{group: {label: value}}``, e.g. box-plot statistics per condition).
 
 The numeric readers take ``series_map={"src": "dst"}`` to rename series. Empty
 cells and non-finite values are dropped (per x/y pair), and numeric-x series are
@@ -291,6 +293,39 @@ def read_table_csv(
                 yerr=es if ei is not None else None,
                 kind="bars",
             )
+    return out
+
+
+@register("json-table")
+def read_json_table(path: Path, field: str | None = None, labels: list[str] | None = None) -> dict[str, Series]:
+    """A JSON object of groups, each a ``{label: number}`` object → one ``bars`` series per group.
+
+    - ``field``: dotted path to the table inside the file (e.g. ``groups``); default the top level.
+    - ``labels``: keep only these labels, in this order; default every numeric entry, in file order.
+
+    ``{"pd_off": {"q1": 167.8, "median": 214.6}}`` gives series ``pd_off`` with label x
+    ``["q1", "median"]``, so gates read single values with ``value_at`` + ``label``.
+    Non-numeric entries are skipped; a requested label that's missing is an error.
+    """
+    obj: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    for part in (field.split(".") if field else []):
+        if not isinstance(obj, dict) or part not in obj:
+            raise ValueError(f"{path}: no field {field!r}")
+        obj = obj[part]
+    if not isinstance(obj, dict):
+        raise ValueError(f"{path}: {field or 'top level'} is not an object of groups")
+    out: dict[str, Series] = {}
+    for name, row in obj.items():
+        if not isinstance(row, dict):
+            continue
+        keys = list(labels) if labels is not None else [k for k, v in row.items() if _finite(v) is not None]
+        missing = [k for k in keys if k not in row]
+        if missing:
+            raise ValueError(f"{path}: group {name!r} has no {', '.join(missing)}")
+        vals = [_finite(row[k]) for k in keys]
+        keep = [(k, v) for k, v in zip(keys, vals) if v is not None]
+        if keep:
+            out[str(name)] = Series(x=[k for k, _ in keep], y=[v for _, v in keep], kind="bars")
     return out
 
 
