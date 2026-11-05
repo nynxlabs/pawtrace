@@ -41,7 +41,7 @@ OPTIONAL = (
     Module("source-log", "honesty", "what each agent/person read; blocks off-limits sources"),
     Module("paper-versions", "honesty", "version, errata, follow-up papers"),
     Module("dependency-graph", "change", "foundation change → affected panels re-checked", depends=("foundations",)),
-    Module("panel-claims", "change", "a lock file: a person or agent claims a panel before working on it"),
+    Module("panel-claims", "change", "a lock file: a person or agent claims a panel before working on it; claims expire", implemented=True),
     Module("compute-budget", "change", "measured run times, batch cost before queueing"),
     Module("author-questions", "output", "email-ready drafts from open ledger items (templates over the ledger)"),
     Module("paper-tables", "output", "templated tables: text-only vs. code-informed, author questions, pass rates", depends=("seed-stats",)),
