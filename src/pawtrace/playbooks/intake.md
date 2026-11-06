@@ -35,7 +35,11 @@ yet — see policy).
        reaches an AI tool until someone fills in the license and access and opens it up.
        A published paper read for research:
        usually `allowed`, subject to the access license's text-mining/AI terms and the
-       AI tool's data-training terms (use `local-only` if either is a problem). A
+       AI tool's data-training terms (use `local-only` if only the tool's terms are a
+       problem). Check the access terms first: some publishers' terms forbid any AI use
+       of the copy they serve (IEEE Xplore is one). When the terms name AI tools in
+       general, `local-only` isn't enough: use `never`, and a person does intake from
+       that copy (an open or author-provided version may have no such terms). A
        manuscript under review (peer review, confidential drafts): **always `never`** —
        a person does intake, and agents don't read the paper or its `source/` folder.
    - `permissions`: anything the authors or publisher granted (`from`, `date`, `grants`:

@@ -80,7 +80,7 @@ candidate items for review.
 | higher-quality extraction | a user-run `command` backend, not a bundled dependency or a built-in model client | marker is GPL-3.0 code with restricted model weights and MinerU is AGPL-3.0; pawtrace makes no model calls ("a tool, not a harness"), so it never imports them or holds model config, and needs no GPU or network |
 | where extracted files go | `papers/<paper>/source/`, with its own `.gitignore` (`*`); `init` also ignores `papers/*/source/` | restricted content can't be committed by accident |
 | status of extracted items | `candidate`, never auto-stated; `extracted:` records the extraction id, page and image | a person reviews each item before it counts as the paper's stated detail |
-| AI tools | published papers read for research may go to AI tools subject to the access license's text-mining and AI terms and the tool's data-training terms; manuscripts under review never | the access terms decide, not the project |
+| AI tools | published papers read for research may go to AI tools subject to the access license's text-mining and AI terms and the tool's data-training terms; `never` when the access terms forbid AI tools in general (IEEE Xplore's do), since `local-only` doesn't satisfy them; manuscripts under review never | the access terms decide, not the project |
 
 Guards: extraction refuses without a `rights:` block, refuses an `--out` folder that git
 doesn't ignore when the paper may not be redistributed, and refuses a command backend
