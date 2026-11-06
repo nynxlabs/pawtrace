@@ -119,7 +119,7 @@ def test_gates_hash_ignores_notes():
     assert gates_hash(a) == gates_hash(b) != gates_hash(c)
 
 
-# --- ops added for the Paper A Fig 2/5 and Paper B Fig 3/4 examples ---------
+# --- windows, smoothing, progress, arithmetic and conditions ---------------
 
 
 def test_window_stat_percentile_and_window_fraction():

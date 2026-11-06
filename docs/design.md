@@ -37,9 +37,7 @@ Semantics worth knowing:
 - `block_means(..., min_count=N)` marks incomplete blocks missing (NaN). `pearson` drops
   trailing missing entries (a shorter run) but is undefined with interior gaps (broken
   data). `slice_mean` and `max_abs` propagate missing entries.
-- Paper-side metrics never depend on how long our run was (this differs from the old
-  testbed code, which truncated the paper's episode vector to ours; verdicts are
-  identical because our side is missing either way).
+- Paper-side metrics never depend on how long our run was.
 - `required: false` gates are reported but don't count toward the panel verdict.
 - `gates_hash` covers metric + gate definitions but not `why`/`history` notes — the
   preregistration module freezes it.

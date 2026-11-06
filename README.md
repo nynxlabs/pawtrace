@@ -124,37 +124,8 @@ pawtrace init | add-paper | modules | lint | spec show|render | extract run|show
 
 ## Worked examples
 
-Each example expresses testbed panels through the core and ships a `parity.py`
-that runs pawtrace's config gates and the original hand-coded gate functions side by
-side on every saved artifact, plus synthetic edge cases, and checks that every verdict
-matches (0 mismatches). They need a local testbed checkout and only read from it;
-its saved runs and paper digitizations are local artifacts (gitignored there), so without
-them `parity.py` exits 2 and its test is skipped. No paper data is committed here.
-
-| example | panels | what it shows |
-| --- | --- | --- |
-| `examples/paper-a-4a/` | Paper A Fig 4a | the full walk-through below: 13 gates on a training curve |
-| `examples/paper-a-2-5/` | Paper A Figs 2a, 2b, 5a, 5b | time-series panels (onset, suppression, half-drop time, shape r) and post-training evals with several conditions; parity also checks the verdicts each saved manifest recorded |
-| `examples/paper-b-3-4/` | Paper B Figs 3, 4 | a distribution checked against the paper's box plot (`json-table` reference), and training curves with progress milestones and run-length guards; parity covers several hundred saved training runs, most of which fail the gates, so it shows fail verdicts as well as passes |
-
-Old gate keys that bundled two checks become two pawtrace gates (one check per gate);
-each `parity.py` maps them back before comparing.
-
-### Paper A Fig 4a
-
-`examples/paper-a-4a/` expresses one testbed panel through the core: the
-panel's 13 gates as config, its WPD-refined digitization as the reference, and saved
-training artifacts imported as runs. `parity.py` runs pawtrace's gates and the original
-hand-coded gate function side by side on every saved artifact and checks that every
-verdict matches. It needs a local testbed checkout and only reads from it; the saved
-training runs and the paper digitization it reads are local artifacts (gitignored there), so
-without them `parity.py` exits 2 and its test is skipped.
-
-```bash
-cd examples/paper-a-4a
-uv run --project ../.. pawtrace import 4a path/to/testbed/artifacts/figures/papers/paper-a/4a/series.json
-uv run --project ../.. python parity.py
-```
+New worked examples will come from the rebuilt
+[testbed](https://github.com/nynxlabs) testbed.
 
 ## Tests
 
