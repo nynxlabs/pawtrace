@@ -124,8 +124,7 @@ pawtrace init | add-paper | modules | lint | spec show|render | extract run|show
 
 ## Worked examples
 
-New worked examples will come from the rebuilt
-[testbed](https://github.com/nynxlabs) testbed.
+Coming soon: each one will run for an outside reader, with no paper content.
 
 ## Tests
 

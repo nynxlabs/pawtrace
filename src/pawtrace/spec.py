@@ -25,7 +25,7 @@
       - {id, question, why, items: [...], panels: [...], evidence: [...],
          status: open|answered-by-us|asked|answered (legacy: sent = asked), asked?, to?, answer?, answer_source?}
 
-Lint enforces the lessons from testbed: a policy and the paper's rights exist
+Lint enforces the lessons from earlier replications: a policy and the paper's rights exist
 before any build;
 every missing/ambiguous item has a ledger entry; ledger sources respect the
 policy; deviations are adopted only after testing on fresh seeds.

@@ -50,7 +50,7 @@ Semantics worth knowing:
 | gate tolerances | explicit per gate | `evaluate(..., tolerance_hook=fn)` is the hook for the digitization-error module |
 | run records | one JSON per run under gitignored `runs/<paper>/<panel>/`, id `<commit12>-<confighash8>-s<seed>` (+`+d<diff8>` when dirty) | imported artifacts: `imp-<sha12>` of the file; re-checks append to `checks` |
 
-## Lessons from testbed, as implemented
+## Lessons from earlier replications, as implemented
 
 | lesson | v0.1 |
 | --- | --- |
