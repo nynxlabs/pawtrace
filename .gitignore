@@ -10,3 +10,5 @@ build/
 runs/
 # example outputs (regenerate locally)
 examples/*/figures/
+# agent notes stay local (machine-specific, not for the public repo)
+AGENTS.md
