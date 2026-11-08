@@ -4,7 +4,7 @@ This file records how v0.1 implements the core and which defaults were picked.
 
 ## Shape
 
-- **A tool, not a harness** (Devin, oct 19 2026). People and agents *use* pawtrace; it
+- **A tool, not a harness** (oct 19 2026). People and agents *use* pawtrace; it
   never drives them: no model calls, no agent loop, no sessions, no provider config.
   Agent-friendliness = `--json` on every command, deterministic output (generated files
   carry no timestamps), clear errors, and validators that say exactly what's missing.
@@ -64,7 +64,7 @@ Semantics worth knowing:
 
 ## Paper rights and extraction (oct 25 2026)
 
-Devin asked for paper rights at intake (core, lint-checked): each paper's `spec.yaml`
+We added paper rights at intake (core, lint-checked): each paper's `spec.yaml`
 has a `rights:` block (license, copy, open version, access, access terms, rules,
 permissions). The `extract` module (optional, group `intake`) pulls text, equations and
 figures from the PDF into a self-ignoring `papers/<paper>/source/` folder and seeds
