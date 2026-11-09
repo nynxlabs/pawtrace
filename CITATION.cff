@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use pawtrace in your research, please cite it using these metadata."
+title: "pawtrace"
+abstract: "A modular pipeline for rebuilding and checking published computational research, for people and AI agents."
+type: software
+authors:
+  - given-names: Devin
+    family-names: Auch
+    affiliation: nynxlabs
+    website: "https://nynxlabs.com"
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/nynxlabs/pawtrace"
+url: "https://nynxlabs.com"
+keywords:
+  - reproducibility
+  - replication
+  - computational research
+  - AI agents
