@@ -7,13 +7,29 @@ authors:
   - given-names: Devin
     family-names: Auch
     affiliation: nynxlabs
+  - name: nynxlabs
     website: "https://nynxlabs.com"
 version: 0.1.0
+date-released: 2026-11-09
 license: Apache-2.0
 repository-code: "https://github.com/nynxlabs/pawtrace"
-url: "https://nynxlabs.com"
+url: "https://github.com/nynxlabs/pawtrace"
 keywords:
   - reproducibility
   - replication
   - computational research
   - AI agents
+preferred-citation:
+  type: software
+  title: "pawtrace"
+  authors:
+    - given-names: Devin
+      family-names: Auch
+    - name: nynxlabs
+  version: 0.1.0
+  year: 2026
+  date-released: 2026-11-09
+  publisher:
+    name: nynxlabs
+  url: "https://github.com/nynxlabs/pawtrace"
+  repository-code: "https://github.com/nynxlabs/pawtrace"
