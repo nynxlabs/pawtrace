@@ -466,6 +466,16 @@ def cmd_overlay(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_digitize(args: argparse.Namespace) -> int:
+    from .digitize.command import run
+    from .digitize.core import DigitizeError
+
+    try:
+        return run(args, lambda obj, text: _emit(args, obj, text))
+    except DigitizeError as exc:
+        raise CliError(str(exc)) from None
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     from . import status
 
@@ -738,6 +748,24 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--run")
     s.add_argument("--out", help="output path (default: <images>/<paper>/<panel>/replication_vN.png)")
     s.set_defaults(fn=cmd_overlay)
+
+    s = sub.add_parser("digitize", parents=[common], help="trace a figure by hand in a local web page (curves, scatter, bars); --review fixes an existing digitization")
+    s.add_argument("image", nargs="?", help="figure image (png/jpg) or a PDF with --page (default: figure: in the panel YAML)")
+    s.add_argument("--out", help="curves-json file to write (needed for a new digitization)")
+    s.add_argument("--review", nargs=2, metavar=("PANEL", "REFERENCE"), help="open a panel reference's digitization over its figure to check and fix it")
+    s.add_argument("--options", help="review: reader options as JSON, replacing the reference's options: (e.g. a table-csv err mapping)")
+    s.add_argument("--panel", help="new digitization: the panel it's for (paper rights note, figure: default)")
+    s.add_argument("--reference", help="new digitization: the reference name in --panel (figure: default)")
+    s.add_argument("--paper", help="new digitization without a panel: the paper (for its rights note)")
+    s.add_argument("--page", type=int, help="PDF figure: page number (1-based)")
+    s.add_argument("--crop", help="PDF figure: x0,y0,x1,y1 in PDF points from the page's top-left")
+    s.add_argument("--dpi", type=int, help="PDF figure: render resolution (default 200)")
+    s.add_argument("--by", help="name recorded with the human provenance (default: just 'human')")
+    s.add_argument("--port", type=int, default=0, help="loopback port (default: a free one)")
+    s.add_argument("--browser", action="store_true", help="open the page in this machine's default browser")
+    s.add_argument("--open-cmd", help="run this command to open the page; {url} and {port} are filled in")
+    s.add_argument("--force", action="store_true", help="new digitization: replace an existing --out file")
+    s.set_defaults(fn=cmd_digitize)
 
     s = sub.add_parser("status", parents=[common], help="generated status page (spec, ledger, panel verdicts)")
     s.add_argument("--write", action="store_true", help="write it to paths.status")

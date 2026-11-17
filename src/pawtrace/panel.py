@@ -12,7 +12,8 @@ Panel YAML keys (see ``docs/panel-format.md``)::
     run:         {entry: "pkg.mod:fn" | "path.py:fn", pythonpath: [...],
                   configs: {paper_only: {...}, adopted: {...}}, default_config, seeds}
     import:      {format: json-fields, series: {name: {y: field, x?: field}}, seed, config, commit}
-    references:  {name: {path, format, series, bin_near_duplicates, transform, status}}
+    references:  {name: {path, format, series, bin_near_duplicates, transform, status, figure?}}
+    figure:      {image, page?, crop?, dpi?}               # for `pawtrace digitize`
     metrics / gates                                   # gates as config (pawtrace.gates)
     overlay:     {series, references, xlabel, ylabel, xlim, ylim}
 """

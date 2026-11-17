@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pawtrace digitize</title>
+<style>
+  :root { --bg:#16171b; --panel:#1f2026; --line:#33353d; --text:#e4e4e7; --dim:#9a9aa3; --accent:#7aa2f7; --warn:#e0af68; --bad:#f7768e; --ok:#9ece6a; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f4f4f5; --panel:#ffffff; --line:#d4d4d8; --text:#18181b; --dim:#62626b; --accent:#2f5fd0; --warn:#9a6700; --bad:#c0263e; --ok:#2f7d32; } }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:13px/1.4 system-ui, sans-serif; }
+  #app { display:grid; grid-template-columns: 300px 1fr; grid-template-rows: 1fr 26px; height:100%; }
+  #side { grid-row: 1 / 3; background:var(--panel); border-right:1px solid var(--line); overflow:auto; padding:10px; }
+  #stage { position:relative; overflow:hidden; cursor:crosshair; touch-action:none; }
+  #stage.pan { cursor:grab; } #stage.edit { cursor:default; }
+  canvas#view { position:absolute; inset:0; width:100%; height:100%; }
+  #loupe { position:absolute; right:10px; top:10px; width:150px; height:150px; border:1px solid var(--line); border-radius:6px; background:#000; pointer-events:none; }
+  #status { grid-column:2; display:flex; gap:16px; align-items:center; padding:0 10px; border-top:1px solid var(--line); background:var(--panel); color:var(--dim); white-space:nowrap; overflow:hidden; }
+  h1 { font-size:14px; margin:0 0 4px; } h2 { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--dim); margin:14px 0 6px; }
+  .note { border:1px solid var(--warn); color:var(--warn); border-radius:6px; padding:6px 8px; margin:6px 0; }
+  .muted { color:var(--dim); } .err { color:var(--bad); } .okc { color:var(--ok); }
+  .tools { display:grid; grid-template-columns: repeat(4, 1fr); gap:4px; }
+  button, select, input { font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:3px 6px; }
+  button { cursor:pointer; } button:hover { border-color:var(--accent); }
+  button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); width:100%; padding:6px; margin-top:6px; }
+  table { border-collapse:collapse; width:100%; } td { padding:2px 3px; vertical-align:middle; }
+  td input[type=number], td input[type=text] { width:100%; }
+  .cal-row.next td:first-child { color:var(--accent); font-weight:600; }
+  .series { border:1px solid var(--line); border-radius:6px; padding:6px; margin-bottom:6px; }
+  .series.active { border-color:var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+  .series .row { display:flex; gap:4px; align-items:center; margin-bottom:4px; }
+  .series .row input[type=text] { flex:1; min-width:0; }
+  input[type=color] { width:28px; height:24px; padding:0; }
+  .kbd { font-family: ui-monospace, monospace; font-size:11px; color:var(--dim); }
+  .res td { font-family: ui-monospace, monospace; font-size:11px; }
+  label.chk { display:flex; gap:6px; align-items:center; margin:4px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h1 id="title">pawtrace digitize</h1>
+    <div class="muted" id="subtitle"></div>
+    <div id="notes"></div>
+
+    <h2>Tool</h2>
+    <div class="tools">
+      <button data-tool="calib" title="Calibrate axes (C)">Axes</button>
+      <button data-tool="add" title="Add points (A)">Add</button>
+      <button data-tool="edit" title="Select, drag, delete (E)">Edit</button>
+      <button data-tool="err" title="Error bar for a point (B)">Err bar</button>
+    </div>
+
+    <h2>Axes</h2>
+    <table id="cal">
+      <tr class="cal-row" data-k="x1"><td>X1</td><td><input type="number" step="any" placeholder="value"></td><td class="muted px">—</td></tr>
+      <tr class="cal-row" data-k="x2"><td>X2</td><td><input type="number" step="any" placeholder="value"></td><td class="muted px">—</td></tr>
+      <tr class="cal-row" data-k="y1"><td>Y1</td><td><input type="number" step="any" placeholder="value"></td><td class="muted px">—</td></tr>
+      <tr class="cal-row" data-k="y2"><td>Y2</td><td><input type="number" step="any" placeholder="value"></td><td class="muted px">—</td></tr>
+    </table>
+    <div class="row" style="display:flex; gap:6px; margin-top:4px">
+      <label>x <select id="xscale"><option>linear</option><option>log</option></select></label>
+      <label>y <select id="yscale"><option>linear</option><option>log</option></select></label>
+    </div>
+    <div id="calmsg" class="muted" style="margin-top:4px"></div>
+
+    <h2>Series</h2>
+    <div id="series"></div>
+    <button id="addseries">+ series (N)</button>
+
+    <h2>Snap (off by default)</h2>
+    <label class="chk"><input type="checkbox" id="snap"> snap clicks to a colour</label>
+    <div id="snapopts" style="display:none">
+      <div class="row" style="display:flex; gap:6px; align-items:center">
+        <input type="color" id="snapcolor" value="#000000"> <button id="pickcolor" title="Click the figure to pick (P)">pick</button>
+        <label>tol <input type="number" id="snaptol" value="60" min="1" max="442" style="width:52px"></label>
+        <label>r <input type="number" id="snaprad" value="6" min="1" max="40" style="width:44px"></label>
+      </div>
+      <div class="muted">Plain colour matching, no AI. Saved provenance records it.</div>
+    </div>
+
+    <div id="reviewbox" style="display:none">
+      <h2>Review</h2>
+      <label class="chk"><input type="checkbox" id="showghost" checked> show original points</label>
+      <button id="replace">re-place points from original</button>
+      <table class="res" id="restable"></table>
+      <label class="chk"><input type="checkbox" id="reviewed"> mark reviewed</label>
+    </div>
+
+    <button class="primary" id="save" title="Ctrl+S">Save</button>
+    <div id="savemsg" class="muted" style="margin-top:4px"></div>
+    <button id="quit" style="margin-top:10px; width:100%">Done (stop server)</button>
+
+    <h2>Keys</h2>
+    <div class="kbd">
+      C axes · A add · E edit · B err bar · P pick colour<br>
+      click adds · drag a point moves it · drag empty space pans<br>
+      Del delete · arrows nudge (Shift ×10) · X clear err bar<br>
+      Ctrl+Z undo · Ctrl+Shift+Z / Ctrl+Y redo · Ctrl+S save<br>
+      pinch / Ctrl+wheel zoom · two-finger scroll pans · + − zoom · 0 fit<br>
+      N new series · , . prev/next series · double-click a bar point: label
+    </div>
+  </div>
+  <div id="stage"><canvas id="view"></canvas><canvas id="loupe" width="150" height="150"></canvas></div>
+  <div id="status"><span id="st-tool"></span><span id="st-pos"></span><span id="st-msg"></span></div>
+</div>
+<script>
+"use strict";
+const TOKEN = new URLSearchParams(location.search).get("t");
+history.replaceState(null, "", location.pathname + "?t=" + TOKEN);
+const $ = (s) => document.querySelector(s);
+const PALETTE = [[214,39,40],[31,119,180],[44,160,44],[255,127,14],[148,103,189],[140,86,75],[227,119,194],[23,190,207]];
+const CAL_KEYS = ["x1","x2","y1","y2"];
+
+let SESSION = null;
+let img = new Image(), pix = null;            // pix: ImageData for snapping, picking, loupe
+let S = { cal: { x1:null, x2:null, y1:null, y2:null, xv1:"", xv2:"", yv1:"", yv2:"", xs:"linear", ys:"linear" }, series: [], active: 0 };
+let ghosts = {};                               // review: original points in pixels {name: [[x,y],...]}
+let tool = "calib", pickMode = false, sel = null, calNext = "x1";
+let view = { k: 1, ox: 0, oy: 0 };
+let undoStack = [], redoStack = [], dirty = false, mouse = null;
+const cv = $("#view"), ctx = cv.getContext("2d"), loupe = $("#loupe"), lctx = loupe.getContext("2d");
+
+// ---------------------------------------------------------------- api
+async function api(path, body) {
+  const r = await fetch(path, { method: body === undefined ? "GET" : "POST", headers: { "X-Pawtrace-Token": TOKEN, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ error: r.statusText }));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// ---------------------------------------------------------------- calibration math (same as core.py)
+function calJson() {
+  const c = S.cal;
+  return { x: { scale: c.xs, points: [{ px: c.x1, value: parseFloat(c.xv1) }, { px: c.x2, value: parseFloat(c.xv2) }] },
+           y: { scale: c.ys, points: [{ px: c.y1, value: parseFloat(c.yv1) }, { px: c.y2, value: parseFloat(c.yv2) }] } };
+}
+function calProblem() {
+  const c = S.cal;
+  for (const k of CAL_KEYS) if (!c[k]) return "click " + k.toUpperCase() + " on the figure";
+  const vals = { xv1: c.xv1, xv2: c.xv2, yv1: c.yv1, yv2: c.yv2 };
+  for (const [k, v] of Object.entries(vals)) if (v === "" || !isFinite(parseFloat(v))) return "type the " + k.replace("v", "").toUpperCase() + " value";
+  if (parseFloat(c.xv1) === parseFloat(c.xv2)) return "X1 and X2 need different values";
+  if (parseFloat(c.yv1) === parseFloat(c.yv2)) return "Y1 and Y2 need different values";
+  if (c.xs === "log" && (parseFloat(c.xv1) <= 0 || parseFloat(c.xv2) <= 0)) return "log x needs positive values";
+  if (c.ys === "log" && (parseFloat(c.yv1) <= 0 || parseFloat(c.yv2) <= 0)) return "log y needs positive values";
+  const dX = sub(c.x2, c.x1), dY = sub(c.y2, c.y1);
+  if (Math.hypot(...dX) < 1e-6 || Math.hypot(...dY) < 1e-6) return "the two points of an axis are on top of each other";
+  if (Math.abs(cross(dX, dY)) <= 1e-9 * Math.hypot(...dX) * Math.hypot(...dY)) return "X and Y axis points are parallel";
+  return null;
+}
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
+function solve(dX, dY, v) { const d = cross(dX, dY); return [cross(v, dY) / d, cross(dX, v) / d]; }
+const fwd = (scale, v) => scale === "log" ? Math.log10(v) : v;
+const back = (scale, u) => scale === "log" ? Math.pow(10, u) : u;
+function toData(p) {
+  if (calProblem()) return null;
+  const c = S.cal, dX = sub(c.x2, c.x1), dY = sub(c.y2, c.y1);
+  const ux1 = fwd(c.xs, +c.xv1), ux2 = fwd(c.xs, +c.xv2), uy1 = fwd(c.ys, +c.yv1), uy2 = fwd(c.ys, +c.yv2);
+  const [a] = solve(dX, dY, sub(p, c.x1));
+  const [, d] = solve(dX, dY, sub(p, c.y1));
+  return [back(c.xs, ux1 + a * (ux2 - ux1)), back(c.ys, uy1 + d * (uy2 - uy1))];
+}
+const fmt = (v) => v == null || !isFinite(v) ? "—" : (Math.abs(v) >= 1e5 || (Math.abs(v) < 1e-3 && v !== 0) ? v.toExponential(4) : (+v.toPrecision(6)).toString());
+
+// ---------------------------------------------------------------- state + undo
+function snapshot() { return JSON.stringify({ cal: S.cal, series: S.series, active: S.active }); }
+function pushUndo() { undoStack.push(snapshot()); if (undoStack.length > 300) undoStack.shift(); redoStack = []; dirty = true; }
+function restore(s) { const o = JSON.parse(s); S.cal = o.cal; S.series = o.series; S.active = Math.min(o.active, S.series.length - 1); sel = null; syncSide(); draw(); schedulePreview(); }
+function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); dirty = true; }
+function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); dirty = true; }
+const active = () => S.series[S.active];
+function newSeries(name, kind, color) {
+  const i = S.series.length;
+  return { name: name || "series" + (i + 1), kind: kind || "curve", color: color || [...PALETTE[i % PALETTE.length], 255], labels: "", points: [] };
+}
+
+// ---------------------------------------------------------------- view
+function resize() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); draw();
+}
+function fit() {
+  if (!img.naturalWidth) return;
+  const r = cv.getBoundingClientRect();
+  view.k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight) * 0.95;
+  view.ox = (r.width - img.naturalWidth * view.k) / 2; view.oy = (r.height - img.naturalHeight * view.k) / 2; draw();
+}
+const toImg = (sx, sy) => [(sx - view.ox) / view.k, (sy - view.oy) / view.k];
+const toScr = (p) => [p[0] * view.k + view.ox, p[1] * view.k + view.oy];
+function zoomAt(sx, sy, f) {
+  const k = Math.min(64, Math.max(0.05, view.k * f)), [ix, iy] = toImg(sx, sy);
+  view.k = k; view.ox = sx - ix * k; view.oy = sy - iy * k; draw();
+}
+function rgb(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a ?? 1})`; }
+
+function draw() {
+  const r = cv.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  if (!img.naturalWidth) return;
+  ctx.imageSmoothingEnabled = view.k < 2;
+  ctx.drawImage(img, view.ox, view.oy, img.naturalWidth * view.k, img.naturalHeight * view.k);
+  // calibration
+  for (const k of CAL_KEYS) {
+    const p = S.cal[k]; if (!p) continue;
+    const [x, y] = toScr(p), col = k[0] === "x" ? "#e0453a" : "#3a7be0";
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke();
+    ctx.fillStyle = col; ctx.font = "bold 12px system-ui"; ctx.fillText(k.toUpperCase(), x + 6, y - 6);
+  }
+  // original points (review)
+  if ($("#showghost").checked) {
+    ctx.strokeStyle = "rgba(128,128,128,0.9)"; ctx.lineWidth = 1;
+    for (const pts of Object.values(ghosts)) for (const p of pts) { const [x, y] = toScr(p); ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.stroke(); }
+  }
+  // series
+  S.series.forEach((s, si) => {
+    const isAct = si === S.active, col = s.color, pts = s.points;
+    if (s.kind === "curve" && pts.length > 1) {
+      const order = pts.map((p, i) => [toData(p.px)?.[0] ?? p.px[0], i]).sort((a, b) => a[0] - b[0]);
+      ctx.strokeStyle = rgb(col, isAct ? 0.9 : 0.5); ctx.lineWidth = 1.2; ctx.beginPath();
+      order.forEach(([, i], j) => { const [x, y] = toScr(pts[i].px); j ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    }
+    pts.forEach((p, i) => {
+      const [x, y] = toScr(p.px);
+      if (p.err_px) {
+        const [ex, ey] = toScr(p.err_px), dy = ey - y;
+        ctx.strokeStyle = rgb(col, 0.9); ctx.lineWidth = 1.2; ctx.beginPath();
+        ctx.moveTo(x, y - dy); ctx.lineTo(x, y + dy); ctx.moveTo(x - 4, y + dy); ctx.lineTo(x + 4, y + dy); ctx.moveTo(x - 4, y - dy); ctx.lineTo(x + 4, y - dy); ctx.stroke();
+      }
+      ctx.fillStyle = rgb(col, isAct ? 1 : 0.6); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (s.kind === "scatter") ctx.rect(x - 3.5, y - 3.5, 7, 7); else if (s.kind === "bars") { ctx.moveTo(x - 6, y); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.closePath(); } else ctx.arc(x, y, 3.5, 0, 7);
+      ctx.fill(); ctx.stroke();
+      if (p.snapped) { ctx.strokeStyle = rgb(col, 0.9); ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.stroke(); }
+      if (s.kind === "bars" && p.label) { ctx.fillStyle = rgb(col, 1); ctx.font = "11px system-ui"; ctx.fillText(p.label, x + 8, y - 4); }
+      if (sel && sel.s === si && sel.i === i) { ctx.strokeStyle = "#ffcc00"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.stroke(); }
+    });
+  });
+  drawLoupe();
+}
+function drawLoupe() {
+  lctx.fillStyle = "#000"; lctx.fillRect(0, 0, 150, 150);
+  if (!mouse || !img.naturalWidth) return;
+  const [ix, iy] = mouse.img, z = Math.max(4, view.k * 4), w = 150 / z;
+  lctx.imageSmoothingEnabled = false;
+  lctx.drawImage(img, ix - w / 2, iy - w / 2, w, w, 0, 0, 150, 150);
+  lctx.strokeStyle = "rgba(255,0,0,0.8)"; lctx.lineWidth = 1;
+  lctx.beginPath(); lctx.moveTo(75, 0); lctx.lineTo(75, 150); lctx.moveTo(0, 75); lctx.lineTo(150, 75); lctx.stroke();
+}
+
+// ---------------------------------------------------------------- side panel
+function syncSide() {
+  const c = S.cal;
+  document.querySelectorAll(".cal-row").forEach((row) => {
+    const k = row.dataset.k, inp = row.querySelector("input");
+    const vk = k[0] + "v" + k[1];
+    if (document.activeElement !== inp) inp.value = c[vk];
+    row.querySelector(".px").textContent = c[k] ? `${c[k][0].toFixed(1)}, ${c[k][1].toFixed(1)}` : "—";
+    row.classList.toggle("next", tool === "calib" && calNext === k);
+  });
+  $("#xscale").value = c.xs; $("#yscale").value = c.ys;
+  const prob = calProblem();
+  $("#calmsg").innerHTML = prob ? `<span class="err">${esc(prob)}</span>` : `<span class="okc">calibrated</span>`;
+  const box = $("#series"); box.innerHTML = "";
+  S.series.forEach((s, i) => {
+    const d = document.createElement("div");
+    d.className = "series" + (i === S.active ? " active" : "");
+    const hex = "#" + s.color.slice(0, 3).map((v) => v.toString(16).padStart(2, "0")).join("");
+    d.innerHTML = `<div class="row"><input type="text" class="nm" value="${esc(s.name)}" title="series name">
+      <input type="color" class="cl" value="${hex}"></div>
+      <div class="row"><select class="kd"><option>curve</option><option>scatter</option><option>bars</option></select>
+      <span class="muted">${s.points.length} pts${SESSION?.focus === s.name ? " · this reference" : ""}</span>
+      <button class="rm" title="delete series" style="margin-left:auto">✕</button></div>
+      <div class="row lb" style="display:${s.kind === "bars" ? "flex" : "none"}"><input type="text" class="labels" placeholder="bar labels, comma separated" value="${esc(s.labels || "")}"></div>`;
+    d.querySelector(".kd").value = s.kind;
+    d.addEventListener("pointerdown", () => { if (S.active !== i) { S.active = i; sel = null; syncSide(); draw(); } });
+    d.querySelector(".nm").addEventListener("change", (e) => { pushUndo(); s.name = e.target.value.trim() || s.name; syncSide(); schedulePreview(); });
+    d.querySelector(".cl").addEventListener("change", (e) => { pushUndo(); const v = e.target.value; s.color = [1, 3, 5].map((j) => parseInt(v.slice(j, j + 2), 16)).concat(255); draw(); });
+    d.querySelector(".kd").addEventListener("change", (e) => { pushUndo(); s.kind = e.target.value; syncSide(); draw(); });
+    d.querySelector(".labels").addEventListener("change", (e) => { pushUndo(); s.labels = e.target.value; });
+    d.querySelector(".rm").addEventListener("click", (e) => {
+      e.stopPropagation(); if (s.points.length && !confirm(`Delete series ${s.name} (${s.points.length} points)?`)) return;
+      pushUndo(); S.series.splice(i, 1); if (!S.series.length) S.series.push(newSeries()); S.active = Math.min(S.active, S.series.length - 1); sel = null; syncSide(); draw(); schedulePreview();
+    });
+    box.appendChild(d);
+  });
+  document.querySelectorAll("[data-tool]").forEach((b) => b.classList.toggle("on", b.dataset.tool === tool && !pickMode));
+  $("#pickcolor").classList.toggle("on", pickMode);
+  $("#snapopts").style.display = $("#snap").checked ? "block" : "none";
+  $("#st-tool").textContent = pickMode ? "pick a colour" : { calib: "axes: click " + calNext.toUpperCase(), add: "add to " + (active()?.name || ""), edit: "edit", err: "error bar for " + (active()?.name || "") }[tool];
+  $("#stage").className = tool === "edit" ? "edit" : "";
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
+function setTool(t) { tool = t; pickMode = false; if (t === "calib") calNext = CAL_KEYS.find((k) => !S.cal[k]) || calNext; syncSide(); }
+function msg(t, cls) { $("#st-msg").innerHTML = `<span class="${cls || ""}">${esc(t)}</span>`; }
+
+// ---------------------------------------------------------------- snapping (plain colour match, off by default)
+function hexRgb(h) { return [1, 3, 5].map((j) => parseInt(h.slice(j, j + 2), 16)); }
+function snap(p) {
+  if (!$("#snap").checked || !pix) return { px: p, snapped: false };
+  const col = hexRgb($("#snapcolor").value), tol = +$("#snaptol").value, R = +$("#snaprad").value;
+  const W = pix.width, H = pix.height, cx = Math.floor(p[0]), cy = Math.floor(p[1]);
+  let best = null, bd = Infinity;
+  for (let y = Math.max(0, cy - R); y <= Math.min(H - 1, cy + R); y++) for (let x = Math.max(0, cx - R); x <= Math.min(W - 1, cx + R); x++) {
+    const o = (y * W + x) * 4, d = Math.hypot(pix.data[o] - col[0], pix.data[o + 1] - col[1], pix.data[o + 2] - col[2]);
+    if (d > tol) continue;
+    const dist = Math.hypot(x + 0.5 - p[0], y + 0.5 - p[1]);
+    if (dist <= R && dist < bd) { bd = dist; best = [x, y]; }
+  }
+  if (!best) return { px: p, snapped: false };
+  // centroid of matching pixels within 1 px of the nearest one
+  let sx = 0, sy = 0, n = 0;
+  for (let y = best[1] - 1; y <= best[1] + 1; y++) for (let x = best[0] - 1; x <= best[0] + 1; x++) {
+    if (x < 0 || y < 0 || x >= W || y >= H) continue;
+    const o = (y * W + x) * 4;
+    if (Math.hypot(pix.data[o] - col[0], pix.data[o + 1] - col[1], pix.data[o + 2] - col[2]) <= tol) { sx += x + 0.5; sy += y + 0.5; n++; }
+  }
+  return { px: [sx / n, sy / n], snapped: true };
+}
+
+// ---------------------------------------------------------------- hit testing
+function hit(sx, sy, onlyActive) {
+  let best = null, bd = 9;
+  S.series.forEach((s, si) => {
+    if (onlyActive && si !== S.active) return;
+    s.points.forEach((p, i) => { const [x, y] = toScr(p.px), d = Math.hypot(x - sx, y - sy); if (d < bd) { bd = d; best = { s: si, i }; } });
+  });
+  return best;
+}
+function hitCal(sx, sy) { for (const k of CAL_KEYS) { const p = S.cal[k]; if (p) { const [x, y] = toScr(p); if (Math.hypot(x - sx, y - sy) < 10) return k; } } return null; }
+
+// ---------------------------------------------------------------- pointer input
+const stage = $("#stage");
+let drag = null, spaceDown = false;
+const pointers = new Map();
+stage.addEventListener("pointerdown", (e) => {
+  stage.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, [e.offsetX, e.offsetY]);
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; drag = { type: "pinch", d: Math.hypot(a[0] - b[0], a[1] - b[1]), mid: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] }; return; }
+  const sx = e.offsetX, sy = e.offsetY;
+  if (e.button === 1 || e.button === 2 || spaceDown) { drag = { type: "pan", sx, sy, ox: view.ox, oy: view.oy, moved: true }; stage.classList.add("pan"); return; }
+  if (pickMode) { pickColour(toImg(sx, sy)); return; }
+  if (tool === "calib") { const k = hitCal(sx, sy); if (k) { drag = { type: "cal", k, sx, sy, moved: false }; return; } }
+  if (tool !== "calib") {
+    const h = hit(sx, sy, tool !== "edit");
+    if (h) { sel = h; S.active = h.s; pushUndo(); drag = { type: "point", h, sx, sy, moved: false }; syncSide(); draw(); return; }
+  }
+  drag = { type: "maybe", sx, sy, ox: view.ox, oy: view.oy, moved: false };
+});
+stage.addEventListener("pointermove", (e) => {
+  const sx = e.offsetX, sy = e.offsetY;
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, [sx, sy]);
+  mouse = { scr: [sx, sy], img: toImg(sx, sy) };
+  const d = toData(mouse.img);
+  $("#st-pos").textContent = `px ${mouse.img[0].toFixed(1)}, ${mouse.img[1].toFixed(1)}` + (d ? `   x ${fmt(d[0])}   y ${fmt(d[1])}` : "");
+  if (drag?.type === "pinch" && pointers.size === 2) {
+    const [a, b] = [...pointers.values()], nd = Math.hypot(a[0] - b[0], a[1] - b[1]), mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    view.ox += mid[0] - drag.mid[0]; view.oy += mid[1] - drag.mid[1]; zoomAt(mid[0], mid[1], nd / drag.d); drag.d = nd; drag.mid = mid; return;
+  }
+  if (!drag) { drawLoupe(); return; }
+  if (drag.type === "maybe" && Math.hypot(sx - drag.sx, sy - drag.sy) > 4) { drag.type = "pan"; drag.moved = true; stage.classList.add("pan"); }
+  if (drag.type === "pan") { view.ox = drag.ox + sx - drag.sx; view.oy = drag.oy + sy - drag.sy; draw(); }
+  else if (drag.type === "cal") {
+    if (!drag.moved && Math.hypot(sx - drag.sx, sy - drag.sy) < 3) return;
+    if (!drag.moved) { pushUndo(); drag.moved = true; }
+    S.cal[drag.k] = mouse.img; syncSide(); draw();
+  }
+  else if (drag.type === "point") {
+    if (!drag.moved && Math.hypot(sx - drag.sx, sy - drag.sy) < 3) return;
+    drag.moved = true;
+    const p = S.series[drag.h.s].points[drag.h.i];
+    const dx = mouse.img[0] - p.px[0], dy = mouse.img[1] - p.px[1];
+    p.px = mouse.img; p.snapped = false; p.moved = true;
+    if (p.err_px) p.err_px = [p.err_px[0] + dx, p.err_px[1] + dy];
+    draw();
+  } else drawLoupe();
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (!drag) return;
+  const d = drag; drag = null; stage.classList.remove("pan");
+  if (d.type === "pinch") return;
+  if (d.type === "point") {
+    if (d.moved) { const p = S.series[d.h.s].points[d.h.i]; const s = snap(p.px); p.px = s.px; p.snapped = s.snapped; schedulePreview(); }
+    else undoStack.pop();  // a plain click on a point only selects it
+    draw(); return;
+  }
+  if (d.type === "cal") { if (d.moved) afterCal(); else if (e.type !== "pointercancel") click(toImg(e.offsetX, e.offsetY)); return; }
+  if (d.type !== "maybe" || e.type === "pointercancel") return;
+  click(toImg(e.offsetX, e.offsetY));
+}
+stage.addEventListener("pointerup", endPointer);
+stage.addEventListener("pointercancel", endPointer);
+stage.addEventListener("pointerleave", () => { mouse = null; drawLoupe(); });
+stage.addEventListener("contextmenu", (e) => e.preventDefault());
+stage.addEventListener("dblclick", (e) => {
+  const h = hit(e.offsetX, e.offsetY, false); if (!h) return;
+  const s = S.series[h.s], p = s.points[h.i]; if (s.kind !== "bars") return;
+  const v = prompt("Bar label", p.label || ""); if (v === null) return;
+  pushUndo(); p.label = v.trim(); p.moved = true; draw(); schedulePreview();
+});
+stage.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) zoomAt(e.offsetX, e.offsetY, Math.exp(-e.deltaY * 0.01));
+  else if (e.deltaMode === 1) zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.25 : 0.8);   // line-mode wheel = a mouse
+  else { view.ox -= e.deltaX; view.oy -= e.deltaY; draw(); }
+}, { passive: false });
+
+function click(p) {
+  if (tool === "calib") {
+    pushUndo(); S.cal[calNext] = p;
+    const k = calNext, row = document.querySelector(`.cal-row[data-k="${k}"] input`);
+    calNext = CAL_KEYS.find((q) => !S.cal[q]) || CAL_KEYS[(CAL_KEYS.indexOf(k) + 1) % 4];
+    syncSide(); draw(); row.focus(); row.select(); afterCal(); return;
+  }
+  const s = active(); if (!s) return;
+  if (tool === "add") {
+    const sn = snap(p), pt = { px: sn.px, snapped: sn.snapped, src: null };
+    if (s.kind === "bars") {
+      const used = new Set(s.points.map((q) => q.label));
+      const next = (s.labels || "").split(",").map((t) => t.trim()).filter((t) => t && !used.has(t))[0];
+      const lab = next ?? prompt("Bar label", ""); if (lab === null || !lab.trim()) return;
+      pt.label = lab.trim();
+    }
+    pushUndo(); s.points.push(pt); sel = { s: S.active, i: s.points.length - 1 };
+  } else if (tool === "err") {
+    let target = sel && sel.s === S.active ? sel.i : null;
+    if (target === null) { let bd = Infinity; s.points.forEach((q, i) => { const d = Math.abs(q.px[0] - p[0]); if (d < bd) { bd = d; target = i; } }); }
+    if (target === null) { msg("add a point first", "err"); return; }
+    pushUndo(); s.points[target].err_px = [s.points[target].px[0], p[1]]; s.points[target].moved = true; sel = { s: S.active, i: target };
+  } else if (tool === "edit") { sel = null; }
+  syncSide(); draw(); schedulePreview();
+}
+function pickColour(p) {
+  if (!pix) return;
+  const x = Math.floor(p[0]), y = Math.floor(p[1]); if (x < 0 || y < 0 || x >= pix.width || y >= pix.height) return;
+  const o = (y * pix.width + x) * 4;
+  $("#snapcolor").value = "#" + [0, 1, 2].map((j) => pix.data[o + j].toString(16).padStart(2, "0")).join("");
+  pickMode = false; syncSide();
+}
+
+// ---------------------------------------------------------------- keyboard
+document.addEventListener("keydown", (e) => {
+  const inField = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
+  const key = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && key === "s") { e.preventDefault(); save(); return; }
+  if ((e.ctrlKey || e.metaKey) && key === "z" && !inField) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && key === "y" && !inField) { e.preventDefault(); redo(); return; }
+  if (inField) { if (e.key === "Enter" || e.key === "Escape") document.activeElement.blur(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === " ") { spaceDown = true; stage.classList.add("pan"); e.preventDefault(); return; }
+  const tools = { c: "calib", a: "add", e: "edit", b: "err" };
+  if (tools[key]) { setTool(tools[key]); return; }
+  if (key === "p") { pickMode = !pickMode; if (pickMode) $("#snap").checked = true; syncSide(); return; }
+  if (key === "n") { addSeries(); return; }
+  if (key === "," || key === ".") { if (S.series.length) { S.active = (S.active + (key === "." ? 1 : -1) + S.series.length) % S.series.length; sel = null; syncSide(); draw(); } return; }
+  if (key === "0") { fit(); return; }
+  if (key === "+" || key === "=") { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1.25); return; }
+  if (key === "-") { const r = cv.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 0.8); return; }
+  if (!sel) return;
+  const s = S.series[sel.s], p = s?.points[sel.i]; if (!p) { sel = null; return; }
+  if (e.key === "Delete" || e.key === "Backspace") { pushUndo(); s.points.splice(sel.i, 1); sel = null; syncSide(); draw(); schedulePreview(); e.preventDefault(); return; }
+  if (key === "x") { if (p.err_px) { pushUndo(); delete p.err_px; p.moved = true; draw(); schedulePreview(); } return; }
+  const step = (e.shiftKey ? 10 : 1) / Math.max(view.k, 1);
+  const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (mv) { e.preventDefault(); pushUndo(); p.px = [p.px[0] + mv[0], p.px[1] + mv[1]]; if (p.err_px) p.err_px = [p.err_px[0] + mv[0], p.err_px[1] + mv[1]]; p.snapped = false; p.moved = true; draw(); schedulePreview(); }
+});
+document.addEventListener("keyup", (e) => { if (e.key === " ") { spaceDown = false; stage.classList.remove("pan"); } });
+
+// ---------------------------------------------------------------- calibration inputs
+document.querySelectorAll(".cal-row").forEach((row) => {
+  const k = row.dataset.k, vk = k[0] + "v" + k[1], inp = row.querySelector("input");
+  inp.addEventListener("change", () => { pushUndo(); S.cal[vk] = inp.value; syncSide(); draw(); afterCal(); });
+  row.querySelector("td").addEventListener("click", () => { setTool("calib"); calNext = k; syncSide(); });
+});
+$("#xscale").addEventListener("change", (e) => { pushUndo(); S.cal.xs = e.target.value; syncSide(); draw(); afterCal(); });
+$("#yscale").addEventListener("change", (e) => { pushUndo(); S.cal.ys = e.target.value; syncSide(); draw(); afterCal(); });
+document.querySelectorAll("[data-tool]").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+function addSeries() { pushUndo(); S.series.push(newSeries(null, active()?.kind)); S.active = S.series.length - 1; sel = null; syncSide(); draw(); }
+$("#addseries").addEventListener("click", addSeries);
+$("#snap").addEventListener("change", syncSide);
+$("#pickcolor").addEventListener("click", () => { pickMode = !pickMode; syncSide(); });
+$("#showghost").addEventListener("change", draw);
+
+// ---------------------------------------------------------------- review: place the original points
+let placedOnce = false;
+async function afterCal() {
+  if (SESSION?.mode !== "review" || calProblem()) { schedulePreview(); return; }
+  try {
+    const r = await api("/api/place", { calibration: calJson() });
+    ghosts = {};
+    for (const [name, pts] of Object.entries(r.series)) if (pts) ghosts[name] = pts.map((p) => p.px);
+    if (!placedOnce && S.series.every((s) => !s.points.length)) placeFrom(r.series, false);
+    else replaceUntouched(r.series);
+    placedOnce = true; draw(); schedulePreview();
+  } catch (err) { msg(err.message, "err"); }
+}
+function replaceUntouched(series) {
+  // calibration changed: points carried over from the original and never moved follow it
+  for (const s of S.series) {
+    const pts = series[s.name]; if (!pts) continue;
+    const bySrc = new Map(pts.map((p) => [p.src, p]));
+    for (const p of s.points) if (p.src != null && !p.moved && bySrc.has(p.src)) { const q = bySrc.get(p.src); p.px = q.px; if (q.err_px) p.err_px = q.err_px; }
+  }
+}
+function placeFrom(series, undoable) {
+  if (undoable) pushUndo();
+  const byName = Object.fromEntries(S.series.map((s) => [s.name, s]));
+  for (const [name, pts] of Object.entries(series)) {
+    if (!pts) continue;
+    const s = byName[name] || (S.series.push(newSeries(name, SESSION.original[name]?.kind)), S.series[S.series.length - 1]);
+    s.points = pts.map((p) => ({ ...p, snapped: false }));
+  }
+  syncSide();
+}
+$("#replace").addEventListener("click", async () => {
+  if (calProblem()) { msg("calibrate the axes first", "err"); return; }
+  if (!confirm("Put every series back to the original points? (undo with Ctrl+Z)")) return;
+  const r = await api("/api/place", { calibration: calJson() }); placeFrom(r.series, true); draw(); schedulePreview();
+});
+
+// ---------------------------------------------------------------- residual preview + save
+let previewTimer = null;
+function schedulePreview() { if (SESSION?.mode !== "review") return; clearTimeout(previewTimer); previewTimer = setTimeout(preview, 500); }
+function payload() {
+  const series = S.series.map((s) => ({ name: s.name, kind: s.kind, color: s.color, points: s.points.map((p) => {
+    const o = { px: p.px }; if (p.label != null) o.label = p.label; if (p.err_px) o.err_px = p.err_px; if (p.src != null) o.src = p.src; if (p.moved) o.moved = true; if (p.snapped) o.snapped = true; return o; }) }));
+  const used = S.series.some((s) => s.points.some((p) => p.snapped));
+  return { state: { calibration: calJson(), series }, image_size: [img.naturalWidth, img.naturalHeight],
+           assist: used || $("#snap").checked ? { color: hexRgb($("#snapcolor").value), tolerance: +$("#snaptol").value, radius: +$("#snaprad").value, enabled: $("#snap").checked } : null,
+           reviewed: $("#reviewed").checked };
+}
+async function preview() {
+  if (calProblem()) { $("#restable").innerHTML = ""; return; }
+  try { const r = await api("/api/preview", payload()); showResidual(r.residual); } catch (err) { $("#restable").innerHTML = `<tr><td class="err">${esc(err.message)}</td></tr>`; }
+}
+function showResidual(res) {
+  if (!res) return;
+  let h = "<tr><td>series</td><td>moved</td><td>+</td><td>−</td><td>max|dy|</td><td>rms</td></tr>";
+  for (const [name, r] of Object.entries(res.series || {}))
+    h += `<tr><td>${esc(name)}</td><td>${r.moved}</td><td>${r.added}</td><td>${r.removed}</td><td>${fmt(r.max_abs_dy)}</td><td>${fmt(r.curve_rms ?? r.rms_dy)}</td></tr>`;
+  for (const n of res.added_series || []) h += `<tr><td colspan="6">+ new series ${esc(n)}</td></tr>`;
+  for (const n of res.removed_series || []) h += `<tr><td colspan="6" class="err">− dropped series ${esc(n)}</td></tr>`;
+  $("#restable").innerHTML = h;
+}
+async function save() {
+  const prob = calProblem(); if (prob) { $("#savemsg").innerHTML = `<span class="err">can't save: ${esc(prob)}</span>`; return; }
+  try {
+    const r = await api("/api/save", payload());
+    dirty = false;
+    const n = Object.entries(r.series).map(([k, v]) => `${k} ${v}`).join(", ");
+    $("#savemsg").innerHTML = `<span class="okc">saved ${esc(SESSION.out)}</span> <span class="muted">(${esc(n)}${r.reviewed ? ", reviewed" : ""}) ${new Date().toLocaleTimeString()}</span>`;
+    if (r.residual) showResidual(r.residual);
+  } catch (err) { $("#savemsg").innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+}
+$("#save").addEventListener("click", save);
+$("#reviewed").addEventListener("change", () => { dirty = true; });
+$("#quit").addEventListener("click", async () => {
+  if (dirty && !confirm("Unsaved changes. Stop anyway?")) return;
+  await api("/api/quit", {}).catch(() => {}); dirty = false;
+  document.body.innerHTML = '<p style="padding:20px">Server stopped. You can close this tab.</p>';
+});
+window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+window.addEventListener("resize", resize);
+
+// ---------------------------------------------------------------- start
+(async function start() {
+  SESSION = await api("/api/session");
+  $("#title").textContent = SESSION.title || "pawtrace digitize";
+  $("#subtitle").textContent = `${SESSION.mode === "review" ? "review" : "new digitization"} · saves ${SESSION.out} · image ${SESSION.image.file}`;
+  if (SESSION.note) $("#notes").innerHTML = `<div class="note">${esc(SESSION.note)}</div>`;
+  if (SESSION.mode === "review") {
+    $("#reviewbox").style.display = "block";
+    const pre = SESSION.preload;
+    if (pre) {
+      const ax = pre.calibration;
+      Object.assign(S.cal, { x1: ax.x.points[0].px, x2: ax.x.points[1].px, y1: ax.y.points[0].px, y2: ax.y.points[1].px,
+        xv1: String(ax.x.points[0].value), xv2: String(ax.x.points[1].value), yv1: String(ax.y.points[0].value), yv2: String(ax.y.points[1].value),
+        xs: ax.x.scale || "linear", ys: ax.y.scale || "linear" });
+      S.series = pre.series.map((s, i) => ({ ...newSeries(s.name, s.kind, s.color || undefined), points: s.points }));
+      placedOnce = true;
+    } else {
+      S.series = Object.entries(SESSION.original).map(([name, s], i) => newSeries(name, s.kind, s.color || undefined));
+      msg("Calibrate the axes (4 clicks + values) to place the existing points.", "");
+    }
+    S.active = Math.max(0, S.series.findIndex((s) => s.name === SESSION.focus));
+  }
+  if (!S.series.length) S.series.push(newSeries());
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const cc = c.getContext("2d", { willReadFrequently: true }); cc.drawImage(img, 0, 0); pix = cc.getImageData(0, 0, c.width, c.height);
+    resize(); fit(); setTool(calProblem() ? "calib" : "add"); if (!calProblem()) afterCal();
+  };
+  img.src = "/image?t=" + encodeURIComponent(TOKEN);
+})().catch((err) => { document.body.innerHTML = `<p style="padding:20px">pawtrace digitize: ${esc(err.message)}</p>`; });
+</script>
+</body>
+</html>

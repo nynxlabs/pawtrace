@@ -20,6 +20,7 @@ panel-claims and author-questions modules). Scope and design notes: `docs/design
 | run records | `runs/<paper>/<panel>/<id>.json` (gitignored) | one JSON per run, keyed by commit + config hash + seed |
 | gates | `metrics:` + `gates:` in the panel YAML | a shared library of ops and checks; each panel's gates are config with explicit tolerances and a `why` |
 | digitization formats | `references:` in the panel YAML | `curves-json`, `wpd-json`, `wpd-csv`, `engauge-csv`, `table-csv` and `json-table` (bars/tables) |
+| digitizer | `pawtrace digitize` | trace a figure by hand in a local web page, or check and fix an existing digitization (`--review`); saves curves-json with provenance |
 | overlays | `pawtrace overlay` | the run and the digitized paper on the same axes, versioned PNGs |
 | status | `pawtrace status --write` | a generated status page — never hand-edited |
 | playbooks | `pawtrace playbook <stage>` | step-by-step instructions per stage that a person or an agent can follow alone |
@@ -61,6 +62,47 @@ uv run pawtrace extract seed smith2024 --kind equation --dry-run
     calls a model itself and needs no GPU or network.
 - **rights:** extraction refuses without a `rights:` block. Extracted content stays local
   unless the paper's license or a recorded permission allows it.
+
+## Digitizing figures by hand
+
+`pawtrace digitize` is a small figure digitizer for people. It serves one page on
+loopback (`127.0.0.1`, a random port, a session token in the URL) and writes curves-json,
+which panels read as a reference like any other format. Everything stays local: no
+model calls and no uploads, and the image itself is never written into the output.
+
+```bash
+uv run pawtrace digitize figs/fig3.png --out papers/smith2024/digitization/fig3.json
+uv run pawtrace digitize paper.pdf --page 4 --crop 60,80,300,260 --out fig3.json   # PDF page + crop (points, top-left)
+uv run pawtrace digitize --review smith2024/fig3 paper        # check and fix a panel reference over its figure
+```
+
+- **calibrate:** click two x ticks and two y ticks and type their values; each axis is
+  linear or log. The four points define the axes, so rotated and skewed plots work too.
+- **trace:** named series, each a `curve`, `scatter` or `bars` series (bars need a label
+  per point; list them once and clicks take them in order). Error bars per point. Drag to
+  move, Delete to remove, Ctrl+Z / Ctrl+Shift+Z, Ctrl+S to save. Pinch or Ctrl+wheel
+  zooms, two-finger scroll or drag pans, a loupe shows the pixels under the cursor.
+- **colour snap (off by default):** moves a click to the nearest pixel of a picked colour.
+  It's plain pixel matching, and the saved file records when it was used. For papers whose
+  `rights.rules.ai_tools` is `never`, the command prints a note.
+- **provenance** in `meta.digitization`: `tool: pawtrace digitize`, `method: manual`,
+  `by: human` (plus `--by NAME`), date, the calibration, the image's file name and
+  sha256, and the snap settings. Each series keeps its clicked pixels in `meta.px`.
+- **review:** `--review <panel> <reference>` reads the reference file (any format), places
+  its points on the figure once the axes are calibrated, and shows the original points
+  under the edited ones. Points you don't move keep their exact values. The page shows the
+  residual live (points moved, added and removed, max |dy|, RMS); saving records
+  `meta.review` (`reviewed_by: human` once you tick *mark reviewed*, the date, the
+  original's path, format, sha256 and git commit, the residual). A curves-json reference is
+  rewritten in place with the previous version in `meta.history`; other formats are saved
+  next to it as `<name>.json`, and the command prints the `path:`/`format:` change for
+  the panel. `--options '{...}'` replaces the reference's reader options for the review
+  (e.g. a table-csv `err:` mapping), and `--out` writes the result somewhere else. A later review of the same image starts from the saved calibration.
+- **the figure:** pass the image, or set `figure: {image, page, crop, dpi}` on the panel or
+  on one reference (`${var}` paths work, so restricted figures can stay outside the repo).
+- **opening the page elsewhere:** `--browser` opens it here; `--open-cmd 'CMD {url}'` runs
+  any opener (`{url}`, `{port}`), e.g. a script that forwards the port over ssh to another
+  machine's loopback and opens it there.
 
 ## Seed stats, preregistration, panel claims, author questions (optional modules)
 
@@ -118,7 +160,7 @@ Every command prints readable text, or JSON with `--json`. Exit codes: 0 ok / ga
 pass, 1 gates fail or lint errors, 2 bad input.
 
 ```text
-pawtrace init | add-paper | modules | lint | spec show|render | extract run|show|seed | panels | run | import | check | runs | overlay | status
+pawtrace init | add-paper | modules | lint | spec show|render | extract run|show|seed | panels | run | import | check | runs | overlay | digitize | status
          | seed-stats | prereg freeze|show|check | claim | release | claims | questions | playbook | gates
 ```
 
