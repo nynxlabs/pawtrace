@@ -1,0 +1,32 @@
+{
+  "name": "pawtrace-desktop",
+  "productName": "pawtrace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop app for pawtrace: a window over `pawtrace serve`, run locally or reached on another machine",
+  "license": "Apache-2.0",
+  "author": "nynxlabs LLC",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist:linux": "electron-builder --linux dir --x64",
+    "dist:linux-arm64": "electron-builder --linux dir --arm64",
+    "dist:win": "electron-builder --win dir --x64",
+    "dist:mac": "electron-builder --mac dir --arm64"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "app.pawtrace.desktop",
+    "productName": "pawtrace",
+    "directories": { "output": "release" },
+    "files": ["main.js", "preload.js", "connection.js", "seams.js", "device.js", "waiting.html", "package.json"],
+    "extraResources": [{ "from": "resources/icon.png", "to": "icon.png" }],
+    "linux": { "executableName": "pawtrace", "icon": "resources/icon.png", "category": "Science" },
+    "win": { "icon": "resources/icon.png", "signExecutable": false },
+    "mac": { "identity": null, "hardenedRuntime": false, "gatekeeperAssess": false, "icon": "resources/icon.png", "category": "public.app-category.developer-tools" }
+  }
+}

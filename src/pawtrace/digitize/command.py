@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
-import subprocess
 import sys
 import webbrowser
 from pathlib import Path
 from typing import Any
 
 from .. import rights as rts
+from ..localweb import announce, run_open_cmd, stop_on_sigterm
 from ..panel import Panel, PanelError
 from ..project import Project, ProjectError
 from ..spec import Paper
@@ -147,17 +146,14 @@ def run(args: Any, emit) -> int:
         print(f"note: {sess.note}", file=sys.stderr)
     server = DigitizeServer(sess, port=args.port or 0)
     url = server.url
-    print(f"pawtrace digitize: {url}", flush=True)
+    # The URL carries the session token: print it only to a terminal, never to a log (localweb.announce).
+    announce("pawtrace digitize", url, url_file=getattr(args, "url_file", None))
     print(f"  saves {sess.out}  ·  Done in the page or Ctrl+C here to stop", file=sys.stderr, flush=True)
     if args.open_cmd:
-        port = str(server.server_address[1])
-        argv = [a.replace("{url}", url).replace("{port}", port) for a in shlex.split(args.open_cmd)]
-        try:
-            subprocess.Popen(argv, stdin=subprocess.DEVNULL)
-        except OSError as exc:
-            print(f"pawtrace digitize: --open-cmd failed: {exc}", file=sys.stderr)
+        run_open_cmd(args.open_cmd, url, server.server_address[1], name="pawtrace digitize")
     elif args.browser:
         webbrowser.open(url)
+    stop_on_sigterm()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -763,7 +763,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--by", help="name recorded with the human provenance (default: just 'human')")
     s.add_argument("--port", type=int, default=0, help="loopback port (default: a free one)")
     s.add_argument("--browser", action="store_true", help="open the page in this machine's default browser")
-    s.add_argument("--open-cmd", help="run this command to open the page; {url} and {port} are filled in")
+    s.add_argument("--open-cmd", help="run this command to open the page; {url} and {port} are filled in (also in $PAWTRACE_URL)")
+    s.add_argument("--url-file", help="write the page URL (it holds the session token) to this file, mode 0600; the URL is printed only to a terminal")
     s.add_argument("--force", action="store_true", help="new digitization: replace an existing --out file")
     s.set_defaults(fn=cmd_digitize)
 
@@ -822,7 +823,33 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--project", help=f"project dir (default: nearest {CONFIG_NAME} upward)")
     s.add_argument("--light", action="store_true", help="light theme (default: black background)")
     s.set_defaults(fn=cmd_tui)
+
+    s = sub.add_parser("serve", help="local JSON API for a front end: pawtrace views, files, digitize (loopback, token)")
+    s.add_argument("project", nargs="?", help=f"project dir (default: nearest {CONFIG_NAME} upward)")
+    s.add_argument("--notes", action="append", metavar="DIR", help="a notes folder to serve (intake/review forms, figure images); repeatable")
+    s.add_argument("--edit-cmd", help="command that opens a file in your editor (POST /api/files/open); {path} is the file's absolute path")
+    s.add_argument("--read-only", action="store_true", help="no file writes at all (notes folders are writable by default)")
+    s.add_argument("--write-checkout", action="store_true", help="let the API write files inside the project checkouts too (generated files stay read-only)")
+    s.add_argument("--theme", help="theme file (docs/api.md § Theme file), served at /api/theme (default: $PAWTRACE_THEME, then $XDG_CONFIG_HOME/pawtrace/theme.json, then built in)")
+    s.add_argument("--by", help="name recorded on digitizations started through the API")
+    s.add_argument("--frame-ancestor", action="append", metavar="ORIGIN", help="an app origin allowed to frame the digitize page; repeatable; default: only this server")
+    s.add_argument("--frontend", help="folder with a built front end, served at /app/ (default: the bundled placeholder page)")
+    s.add_argument("--config", help="user config file (default: $XDG_CONFIG_HOME/pawtrace/ui.yaml)")
+    s.add_argument("--port", type=int, default=0, help="loopback port (default: a free one)")
+    s.add_argument("--url-file", help="write the server URL (it holds the session token as ?t=) to this file, mode 0600; it's printed only to a terminal")
+    s.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    s.set_defaults(fn=cmd_serve)
     return p
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    from .webui.command import run
+    from .webui.notes import NotesError
+
+    try:
+        return run(args, lambda obj, text: _emit(args, obj, text))
+    except NotesError as exc:
+        raise CliError(str(exc)) from None
 
 
 def cmd_tui(args: argparse.Namespace) -> int:

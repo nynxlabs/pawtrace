@@ -1,0 +1,26 @@
+{
+  "name": "pawtrace-web",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "pawtrace's front end on densk-core, built into src/pawtrace/webui/app/ (served by `pawtrace serve`)",
+  "workspaces": ["densk-core"],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit -p .",
+    "check": "bun densk-core/scripts/css_check.ts src/pawtrace.css"
+  },
+  "dependencies": {
+    "densk-core": "workspace:*",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

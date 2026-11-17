@@ -1,0 +1,27 @@
+/* Placeholder front end for `pawtrace serve` (/app/). Colours come from /api/theme. */
+:root { --bg: #1c1c1c; --chrome: #282828; --line: #3f3f3f; --border: #333; --text: #dadada; --strong: #f0f0f0;
+  --muted: #999; --ok: #40c977; --bad: #fa423e; --warn: #e0ac00; --bar: 40px; color-scheme: dark;
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+body { display: grid; grid-template-rows: var(--bar) 1fr auto; }
+#bar { display: flex; align-items: center; gap: 10px; padding: 0 12px; background: var(--chrome); border-bottom: 2px solid var(--line);
+  -webkit-app-region: drag; user-select: none; }
+#bar img { width: 20px; height: 20px; }
+#bar select, #bar button { -webkit-app-region: no-drag; }
+select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+.grow { flex: 1; }
+main { overflow: auto; padding: 16px 22px; }
+footer { padding: 8px 22px; border-top: 1px solid var(--border); }
+.muted { color: var(--muted); }
+h2 { font-size: 14px; color: var(--strong); margin: 18px 0 8px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); padding: 5px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td.n { text-align: right; }
+.st { display: inline-block; width: 11px; height: 11px; border: 1px solid var(--line); border-radius: 2px; margin-right: 2px; }
+.st.done { background: var(--text); border-color: var(--text); }
+.st.active { background: linear-gradient(to right, var(--text) 50%, transparent 50%); border-color: var(--text); }
+.st.off { border-style: dashed; opacity: .5; }
+.ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+.err { color: var(--bad); }

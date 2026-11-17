@@ -12,3 +12,7 @@ runs/
 examples/*/figures/
 # agent notes stay local (machine-specific, not for the public repo)
 AGENTS.md
+
+# pawtrace web front end: dependencies, and its build (shipped as package data, see pyproject.toml)
+web/node_modules/
+src/pawtrace/webui/app/

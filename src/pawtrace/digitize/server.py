@@ -2,29 +2,28 @@
 
 Stdlib only (``http.server``). It binds to loopback, serves one static page
 (``static/digitize.html``), the figure image and a small JSON API, and writes the
-curves-json file when the page saves. Every request needs the session token the
-command prints in the URL, and the ``Host`` header must be loopback, so other
-local pages can't drive it (DNS rebinding) and nothing listens on the network.
+curves-json file when the page saves. The guards (loopback ``Host``, session token,
+JSON-only POSTs) are in :mod:`pawtrace.localweb`. ``pawtrace serve`` mounts the same
+routes under ``/dz/<id>/`` (:func:`route_get`, :func:`route_post`).
 
 No model calls, no uploads: the image and the clicks stay on this machine.
 """
 from __future__ import annotations
 
 import json
-import secrets
 import subprocess
 import threading
 from dataclasses import dataclass, field
-from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import urlparse
 
 import numpy as np
 
 from .. import __version__, formats
+from ..localweb import TOKEN_HEADER, GuardedHandler, new_token
 from ..data import Series
 from .core import (
     Calibration,
@@ -38,7 +37,6 @@ from .core import (
 )
 
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp"}
-MAX_BODY = 32 * 1024 * 1024
 
 
 @dataclass
@@ -105,7 +103,7 @@ class Session:
     previous: dict[str, Any] | None = None  # the curves-json doc a review overwrites in place
     focus: str | None = None  # the series the panel reference points at
     root: Path | None = None  # project root (for paths printed back)
-    token: str = field(default_factory=lambda: secrets.token_urlsafe(18))
+    token: str = field(default_factory=new_token)
     saves: list[dict[str, Any]] = field(default_factory=list)
 
     # -- what the page loads ---------------------------------------------------
@@ -264,90 +262,72 @@ def page_html() -> bytes:
     return resources.files("pawtrace.digitize").joinpath("static/digitize.html").read_bytes()
 
 
-class _Handler(BaseHTTPRequestHandler):
+DIGITIZE_CSP = ("default-src 'none'; img-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; "
+                "connect-src 'self'; frame-ancestors {ancestors}; base-uri 'none'; form-action 'none'")
+
+
+def digitize_csp(ancestors: list[str] | tuple[str, ...] = ()) -> str:
+    """The page's CSP. ``ancestors`` = extra origins allowed to frame it (beside its own server)."""
+    return DIGITIZE_CSP.format(ancestors=" ".join(["'self'", *ancestors]))
+
+
+def route_get(h: GuardedHandler, sess: Session, path: str, ancestors: tuple[str, ...] = ()) -> bool:
+    """GET routes of one digitize session, relative to where it's mounted. False = not ours."""
+    if path in ("/", ""):
+        h.send_bytes(200, page_html(), "text/html; charset=utf-8", {"Content-Security-Policy": digitize_csp(ancestors)})
+    elif path == "/image":
+        h.send_bytes(200, sess.figure.data, sess.figure.mime)
+    elif path == "/api/session":
+        h.send_json(sess.describe())
+    else:
+        return False
+    return True
+
+
+def route_post(h: GuardedHandler, sess: Session, path: str, body: dict[str, Any], lock: threading.Lock,
+               on_quit: Any) -> bool:
+    """POST routes of one digitize session. ``on_quit`` runs after /api/quit answers."""
+    try:
+        with lock:
+            if path == "/api/place":
+                h.send_json({"series": sess.place(body.get("calibration") or {})})
+            elif path == "/api/preview":
+                doc = sess.build(body)
+                h.send_json({"residual": (doc["meta"].get("review") or {}).get("residual"),
+                             "series": {k: v["n"] for k, v in doc["series"].items()}})
+            elif path == "/api/save":
+                h.send_json(sess.save(body))
+            elif path == "/api/quit":
+                h.send_json({"ok": True})
+                on_quit()
+            else:
+                return False
+    except (DigitizeError, ValueError, KeyError, TypeError) as exc:
+        h.send_json({"error": str(exc)}, 400)
+    return True
+
+
+class _Handler(GuardedHandler):
     server: "DigitizeServer"
-    protocol_version = "HTTP/1.1"
 
-    def log_message(self, fmt: str, *args: Any) -> None:  # quiet
-        pass
+    def _session_token(self) -> str:
+        return self.server.session.token
 
-    # -- guards -----------------------------------------------------------------
-    def _allowed(self, token: str | None) -> bool:
-        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
-        if host not in ("127.0.0.1", "localhost", "::1"):
-            self._send(HTTPStatus.FORBIDDEN, b"bad host", "text/plain")
-            return False
-        if not token or not secrets.compare_digest(token, self.server.session.token):
-            self._send(HTTPStatus.FORBIDDEN, b"bad token", "text/plain")
-            return False
-        return True
-
-    def _send(self, status: int, body: bytes, ctype: str, extra: dict[str, str] | None = None) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "no-referrer")
-        for k, v in (extra or {}).items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _json(self, obj: Any, status: int = 200) -> None:
-        self._send(status, json.dumps(obj, default=str).encode(), "application/json")
-
-    # -- routes -----------------------------------------------------------------
     def do_GET(self) -> None:  # noqa: N802
-        url = urlparse(self.path)
-        token = (parse_qs(url.query).get("t") or [None])[0] or self.headers.get("X-Pawtrace-Token")
-        if not self._allowed(token):
+        if not self.allowed(self.get_token()):
             return
-        sess = self.server.session
-        if url.path == "/":
-            csp = "default-src 'none'; img-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'"
-            self._send(200, page_html(), "text/html; charset=utf-8", {"Content-Security-Policy": csp})
-        elif url.path == "/image":
-            self._send(200, sess.figure.data, sess.figure.mime)
-        elif url.path == "/api/session":
-            self._json(sess.describe())
-        else:
-            self._send(404, b"not found", "text/plain")
+        if not route_get(self, self.server.session, urlparse(self.path).path):
+            self.send_bytes(404, b"not found", "text/plain")
 
     def do_POST(self) -> None:  # noqa: N802
-        url = urlparse(self.path)
-        if not self._allowed(self.headers.get("X-Pawtrace-Token")):
+        if not self.allowed(self.headers.get(TOKEN_HEADER)):
             return
-        if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
-            self._send(415, b"json only", "text/plain")
+        body = self.read_json()
+        if body is None:
             return
-        n = int(self.headers.get("Content-Length") or 0)
-        if n > MAX_BODY:
-            self._send(413, b"too large", "text/plain")
-            return
-        try:
-            body = json.loads(self.rfile.read(n) or b"{}")
-        except json.JSONDecodeError:
-            self._json({"error": "bad json"}, 400)
-            return
-        sess = self.server.session
-        try:
-            with self.server.lock:
-                if url.path == "/api/place":
-                    self._json({"series": sess.place(body.get("calibration") or {})})
-                elif url.path == "/api/preview":
-                    doc = sess.build(body)
-                    self._json({"residual": (doc["meta"].get("review") or {}).get("residual"),
-                                "series": {k: v["n"] for k, v in doc["series"].items()}})
-                elif url.path == "/api/save":
-                    self._json(sess.save(body))
-                elif url.path == "/api/quit":
-                    self._json({"ok": True})
-                    threading.Thread(target=self.server.shutdown, daemon=True).start()
-                else:
-                    self._send(404, b"not found", "text/plain")
-        except (DigitizeError, ValueError, KeyError, TypeError) as exc:
-            self._json({"error": str(exc)}, 400)
+        quit_ = lambda: threading.Thread(target=self.server.shutdown, daemon=True).start()  # noqa: E731
+        if not route_post(self, self.server.session, urlparse(self.path).path, body, self.server.lock, quit_):
+            self.send_bytes(404, b"not found", "text/plain")
 
 
 class DigitizeServer(ThreadingHTTPServer):

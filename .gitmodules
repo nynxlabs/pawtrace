@@ -1,0 +1,3 @@
+[submodule "web/densk-core"]
+	path = web/densk-core
+	url = https://github.com/nynxlabs/densk-core.git

@@ -102,7 +102,43 @@ uv run pawtrace digitize --review smith2024/fig3 paper        # check and fix a 
   on one reference (`${var}` paths work, so restricted figures can stay outside the repo).
 - **opening the page elsewhere:** `--browser` opens it here; `--open-cmd 'CMD {url}'` runs
   any opener (`{url}`, `{port}`), e.g. a script that forwards the port over ssh to another
-  machine's loopback and opens it there.
+  machine's loopback and opens it there. The URL is printed only to a terminal: under
+  systemd or a pipe we print the port without the token (`--url-file PATH` writes the full
+  URL to a 0600 file), and `--open-cmd` also gets it in `$PAWTRACE_URL`.
+
+## The local API
+
+`pawtrace serve [PROJECT]` serves pawtrace's views and the project's files as a local JSON
+API, for a web front end or any other tool. It uses the same guards as `digitize`
+(loopback only, a session token, JSON-only POSTs), makes no model calls, and reads the
+files fresh on every request. It writes only when asked: a file in a writable space, an
+overlay PNG, or a digitization.
+
+```bash
+uv run pawtrace serve                                   # the project around the current folder
+uv run pawtrace serve ../myproject --notes ~/notes/myproject --edit-cmd 'myeditor {path}' --url-file /run/user/1000/pawtrace.url
+```
+
+- **views:** the overview (stages, items, gaps, questions, gates and rights per paper), each
+  paper (spec items, ledger, questions, panels with gate verdicts and overlays), intake and
+  review forms in notes folders with their marks, and every panel reference with how it was
+  made. `pawtrace digitize` sessions run inside it too.
+- **host interface:** spaces (the project's checkouts and the notes folders), list / stat /
+  read / write files (writes are compare-and-swap on the file's sha256), open a file in your
+  editor, and a small state store for a front end's tabs and preferences.
+- **settings that belong to one machine** (notes folders outside the repo, the editor,
+  whether checkouts are writable) go on the command line or in
+  `$XDG_CONFIG_HOME/pawtrace/ui.yaml`, never in the project.
+
+Routes, fields and guards: [docs/api.md](docs/api.md).
+
+The front end ([web/](web/README.md)) is built on densk-core, the shared UI core of densk: tabs,
+split panes, a sidebar over the notes folders and checkouts, PDF / markdown / code / image viewers
+and editors, and pawtrace's own pages (overview, papers, panels, reviews, figures, digitize). Review
+forms open in the editor, so marking one is editing it, with a conflict check against other
+editors. `pawtrace serve` serves the build at `/`. The desktop app ([desktop/](desktop/README.md))
+is a window over it: it starts `pawtrace serve` for a local project, or follows a server on
+another machine through a loopback tunnel, and keeps the session token in memory.
 
 ## Seed stats, preregistration, panel claims, author questions (optional modules)
 

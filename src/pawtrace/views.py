@@ -1,4 +1,7 @@
-"""What the TUI shows, read from the same files the CLI uses (no state of its own)."""
+"""What pawtrace's people-facing views show (the TUI and the web UI), read from the same files the CLI uses.
+
+No state of its own: every view is rebuilt from spec.yaml, ledger.yaml, the panel configs and
+the run records on each call."""
 from __future__ import annotations
 
 import json
@@ -7,12 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .. import rights as rts
-from ..panel import Panel
-from ..project import Project
-from ..runs import RunStore, last_report
-from ..spec import Paper
-from ..stages import Stage, paper_stages
+from . import rights as rts
+from .panel import Panel
+from .project import Project
+from .runs import RunStore, last_report
+from .spec import Paper
+from .stages import Stage, paper_stages
 
 
 @dataclass

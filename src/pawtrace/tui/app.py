@@ -19,7 +19,7 @@ from .. import rights as rts
 from ..project import Project
 from ..stages import STAGES
 from . import brand, intake
-from .data import PaperView, PanelView, extraction, load_paper
+from ..views import PaperView, PanelView, extraction, load_paper
 from .figure import RENDERER, Figure
 from .widgets import BrandHeader, TitleBar, glyph, verdict_text
 

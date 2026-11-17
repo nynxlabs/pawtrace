@@ -32,6 +32,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pawtrace"]
+# The front end's build (`cd web && bun run build`) is gitignored but ships in the wheel.
+artifacts = ["src/pawtrace/webui/app/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

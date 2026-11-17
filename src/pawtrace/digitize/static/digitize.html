@@ -22,8 +22,8 @@
   .tools { display:grid; grid-template-columns: repeat(4, 1fr); gap:4px; }
   button, select, input { font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:3px 6px; }
   button { cursor:pointer; } button:hover { border-color:var(--accent); }
-  button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
-  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); width:100%; padding:6px; margin-top:6px; }
+  button.on { background:var(--accent); color:var(--on-accent, #fff); border-color:var(--accent); }
+  button.primary { background:var(--accent); color:var(--on-accent, #fff); border-color:var(--accent); width:100%; padding:6px; margin-top:6px; }
   table { border-collapse:collapse; width:100%; } td { padding:2px 3px; vertical-align:middle; }
   td input[type=number], td input[type=text] { width:100%; }
   .cal-row.next td:first-child { color:var(--accent); font-weight:600; }
@@ -108,6 +108,35 @@
 <script>
 "use strict";
 const TOKEN = new URLSearchParams(location.search).get("t");
+// Inside a same-origin frame (a front end over `pawtrace serve`): wear the parent's --pt-* colours and hand tab keys up.
+const EMBED = window.parent !== window;
+function applyParentTheme() {
+  try {
+    const cs = getComputedStyle(window.parent.document.documentElement), root = document.documentElement.style;
+    // densk-core's theme variables (pawtrace's front end), falling back to older --pt-* names
+    const map = { "--bg": ["--bg", "--pt-bg"], "--panel": ["--panel", "--pt-panel"], "--line": ["--border-strong", "--pt-line"],
+                  "--text": ["--text", "--pt-text"], "--dim": ["--muted", "--pt-muted"], "--accent": ["--accent", "--pt-accent"],
+                  "--on-accent": ["--bg", "--pt-accent-text"], "--warn": ["--warning", "--pt-warning"], "--bad": ["--danger", "--pt-danger"],
+                  "--ok": ["--success", "--pt-success"] };
+    for (const [mine, theirs] of Object.entries(map)) {
+      for (const name of theirs) { const v = cs.getPropertyValue(name).trim(); if (v) { root.setProperty(mine, v); break; } }
+    }
+    const fs = cs.getPropertyValue("--pt-text-ui").trim() || cs.getPropertyValue("--nynx-text-ui").trim(); if (fs) document.body.style.fontSize = fs;
+  } catch (_) { /* not same-origin: keep our own colours */ }
+}
+if (EMBED) {
+  window.addEventListener("message", (e) => { if (e.origin === location.origin && e.data && e.data.type === "pawtrace-theme") applyParentTheme(); });
+  const fwd = (e) => {
+    const tabKey = e.ctrlKey && !e.altKey && (/^[kqr0-9]$/i.test(e.key) || ["Tab", "PageUp", "PageDown"].includes(e.key) || ["BracketLeft", "BracketRight"].includes(e.code));
+    if (e.type === "keydown" && !tabKey) return;
+    if (e.type === "keyup" && e.key !== "Control") return;
+    if (e.type === "keydown") e.preventDefault();
+    window.parent.postMessage({ type: "pawtrace-key", kind: e.type, key: e.key, code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey }, location.origin);
+  };
+  window.addEventListener("keydown", fwd, true);
+  window.addEventListener("keyup", fwd, true);
+  window.addEventListener("blur", () => window.parent.postMessage({ type: "pawtrace-key", kind: "blur" }, location.origin));
+}
 history.replaceState(null, "", location.pathname + "?t=" + TOKEN);
 const $ = (s) => document.querySelector(s);
 const PALETTE = [[214,39,40],[31,119,180],[44,160,44],[255,127,14],[148,103,189],[140,86,75],[227,119,194],[23,190,207]];
@@ -491,7 +520,7 @@ let placedOnce = false;
 async function afterCal() {
   if (SESSION?.mode !== "review" || calProblem()) { schedulePreview(); return; }
   try {
-    const r = await api("/api/place", { calibration: calJson() });
+    const r = await api("api/place", { calibration: calJson() });
     ghosts = {};
     for (const [name, pts] of Object.entries(r.series)) if (pts) ghosts[name] = pts.map((p) => p.px);
     if (!placedOnce && S.series.every((s) => !s.points.length)) placeFrom(r.series, false);
@@ -520,7 +549,7 @@ function placeFrom(series, undoable) {
 $("#replace").addEventListener("click", async () => {
   if (calProblem()) { msg("calibrate the axes first", "err"); return; }
   if (!confirm("Put every series back to the original points? (undo with Ctrl+Z)")) return;
-  const r = await api("/api/place", { calibration: calJson() }); placeFrom(r.series, true); draw(); schedulePreview();
+  const r = await api("api/place", { calibration: calJson() }); placeFrom(r.series, true); draw(); schedulePreview();
 });
 
 // ---------------------------------------------------------------- residual preview + save
@@ -536,7 +565,7 @@ function payload() {
 }
 async function preview() {
   if (calProblem()) { $("#restable").innerHTML = ""; return; }
-  try { const r = await api("/api/preview", payload()); showResidual(r.residual); } catch (err) { $("#restable").innerHTML = `<tr><td class="err">${esc(err.message)}</td></tr>`; }
+  try { const r = await api("api/preview", payload()); showResidual(r.residual); } catch (err) { $("#restable").innerHTML = `<tr><td class="err">${esc(err.message)}</td></tr>`; }
 }
 function showResidual(res) {
   if (!res) return;
@@ -550,7 +579,7 @@ function showResidual(res) {
 async function save() {
   const prob = calProblem(); if (prob) { $("#savemsg").innerHTML = `<span class="err">can't save: ${esc(prob)}</span>`; return; }
   try {
-    const r = await api("/api/save", payload());
+    const r = await api("api/save", payload());
     dirty = false;
     const n = Object.entries(r.series).map(([k, v]) => `${k} ${v}`).join(", ");
     $("#savemsg").innerHTML = `<span class="okc">saved ${esc(SESSION.out)}</span> <span class="muted">(${esc(n)}${r.reviewed ? ", reviewed" : ""}) ${new Date().toLocaleTimeString()}</span>`;
@@ -561,7 +590,8 @@ $("#save").addEventListener("click", save);
 $("#reviewed").addEventListener("change", () => { dirty = true; });
 $("#quit").addEventListener("click", async () => {
   if (dirty && !confirm("Unsaved changes. Stop anyway?")) return;
-  await api("/api/quit", {}).catch(() => {}); dirty = false;
+  await api("api/quit", {}).catch(() => {}); dirty = false;
+  if (EMBED) { window.parent.postMessage({ type: "pawtrace-digitize-done" }, location.origin); document.body.innerHTML = '<p style="padding:20px">Session closed.</p>'; return; }
   document.body.innerHTML = '<p style="padding:20px">Server stopped. You can close this tab.</p>';
 });
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
@@ -569,7 +599,8 @@ window.addEventListener("resize", resize);
 
 // ---------------------------------------------------------------- start
 (async function start() {
-  SESSION = await api("/api/session");
+  SESSION = await api("api/session");
+  if (EMBED) { applyParentTheme(); $("#quit").textContent = "Done (close session)"; }
   $("#title").textContent = SESSION.title || "pawtrace digitize";
   $("#subtitle").textContent = `${SESSION.mode === "review" ? "review" : "new digitization"} · saves ${SESSION.out} · image ${SESSION.image.file}`;
   if (SESSION.note) $("#notes").innerHTML = `<div class="note">${esc(SESSION.note)}</div>`;
@@ -595,7 +626,7 @@ window.addEventListener("resize", resize);
     const cc = c.getContext("2d", { willReadFrequently: true }); cc.drawImage(img, 0, 0); pix = cc.getImageData(0, 0, c.width, c.height);
     resize(); fit(); setTool(calProblem() ? "calib" : "add"); if (!calProblem()) afterCal();
   };
-  img.src = "/image?t=" + encodeURIComponent(TOKEN);
+  img.src = "image?t=" + encodeURIComponent(TOKEN);
 })().catch((err) => { document.body.innerHTML = `<p style="padding:20px">pawtrace digitize: ${esc(err.message)}</p>`; });
 </script>
 </body>
