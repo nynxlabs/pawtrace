@@ -13,7 +13,8 @@
 Where the files live: ``paths.claims`` in ``pawtrace.yaml`` when set; otherwise inside the git
 repo's common dir (``.git/pawtrace-claims/<project path>/``), which every worktree of the
 repo shares — so agents in separate worktrees see each other's claims without committing
-anything; outside git, ``.pawtrace-claims/`` in the project. Claims are coordination state,
+anything; outside git (or in a repo that ignores the project folder, so it isn't the project's
+repo), ``.pawtrace-claims/`` in the project. Claims are coordination state,
 not results, so they stay out of commits.
 
 Safe for concurrent writers: a claim is written to a temp file and published with
@@ -36,7 +37,7 @@ from typing import Any
 
 import yaml
 
-from .project import Project
+from .project import Project, git_top
 
 DEFAULT_TTL = "4h"
 BREAK_STALE_S = 60   # a leftover .break file older than this is from a crashed claimer
@@ -85,6 +86,8 @@ def claims_dir(project: Project) -> Path:
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], cwd=project.root, capture_output=True, text=True, check=True).stdout.strip()
 
+    if git_top(project.root) is None:  # outside git, or in a repo that ignores the project
+        return project.root / ".pawtrace-claims"
     try:
         common = Path(git("rev-parse", "--git-common-dir"))
         prefix = git("rev-parse", "--show-prefix").strip("/")

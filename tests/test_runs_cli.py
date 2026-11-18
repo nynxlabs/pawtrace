@@ -660,3 +660,22 @@ def test_project_is_found_from_cwd_without_flag(tmp_path, capsys, monkeypatch):
     code, out, _ = call(capsys, "panels", "--json")
     assert code == 0
     assert json.loads(out)["panels"][0]["panel"] == "demo/p1"
+
+
+def test_git_state_skips_a_repo_that_ignores_the_project(tmp_path):
+    # a run in a project the surrounding repo ignores must not record that repo's commit
+    from pawtrace.runs import git_state
+
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    _git(outer, "init", "-q")
+    (outer / ".gitignore").write_text("cache/\n")
+    _git(outer, "add", ".gitignore")
+    _git(outer, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false",
+         "commit", "-qm", "init")
+    head = _git(outer, "rev-parse", "HEAD").strip()
+    for rel, want in (("cache/proj", None), ("sub/proj", head)):
+        d = outer / rel
+        d.mkdir(parents=True)
+        (d / "pawtrace.yaml").write_text("pawtrace: 1\nname: p\nprofile: minimal\n")
+        assert git_state(d)["commit"] == want

@@ -34,7 +34,7 @@ from urllib.parse import unquote, urlencode, urlparse
 
 from .. import __version__
 from ..localweb import TOKEN_HEADER, BadRequest, GuardedHandler, new_token
-from ..project import CONFIG_NAME, Project, ProjectError
+from ..project import CONFIG_NAME, Project, ProjectError, git_top
 from . import data as dv
 from . import notes as nts
 from . import fileapi as fa
@@ -75,7 +75,7 @@ def tree_entries(proj: Project) -> list[tuple[str, Path]]:
     if not isinstance(raw, dict):
         return []
     root = proj.root.resolve()
-    bound = _repo_top(root)
+    bound = git_top(root)  # None outside git, or when the repo around it ignores the project
     if bound == root:  # the project is its own repo, nested in another: allow that one
         bound = _repo_top(root.parent) or root
     bound = bound or root

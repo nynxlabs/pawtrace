@@ -24,6 +24,7 @@ from typing import Any
 
 from .data import PanelData
 from .gates import GateReport
+from .project import git_top
 
 
 def config_hash(config: Any) -> str:
@@ -35,6 +36,8 @@ def git_state(cwd: Path) -> dict[str, Any]:
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=True).stdout
 
+    if git_top(cwd) is None:  # outside git, or in a repo that ignores the project: no commit covers it
+        return {"commit": None, "dirty": None}
     try:
         commit = git("rev-parse", "HEAD").strip()
         diff = git("diff", "HEAD")

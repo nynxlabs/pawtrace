@@ -151,6 +151,32 @@ def test_paths_claims_override_and_no_git(tmp_path, capsys):
     assert cl.claims_dir(Project.find(plain)) == plain / ".pawtrace-claims"
 
 
+def _outer_repo(tmp_path):
+    """A repo around the projects that ignores ``cache/`` (like a checkout with an ignored temp folder)."""
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    _git(outer, "init", "-q")
+    (outer / ".gitignore").write_text("cache/\n")
+    return outer
+
+
+def _plain_project(d):
+    (d / "papers/demo/panels").mkdir(parents=True)
+    (d / "pawtrace.yaml").write_text("pawtrace: 1\nname: plain\nprofile: minimal\nmodules: {panel-claims: true}\n")
+    (d / "papers/demo/panels/p1.yaml").write_text("panel: p1\n")
+    return d
+
+
+def test_project_ignored_by_the_repo_around_it_keeps_claims_local(tmp_path):
+    # the repo ignores the project, so it isn't the project's repo: claims stay out of its git dir
+    outer = _outer_repo(tmp_path)
+    ignored = _plain_project(outer / "cache" / "proj")
+    assert cl.claims_dir(Project.find(ignored)) == ignored / ".pawtrace-claims"
+    # a project in a plain subfolder (tracked or not yet) belongs to the repo: shared by its worktrees
+    sub = _plain_project(outer / "sub" / "proj")
+    assert cl.claims_dir(Project.find(sub)) == (outer / ".git").resolve() / "pawtrace-claims" / "sub/proj"
+
+
 def test_concurrent_claimers_exactly_one_wins(root):
     proj = Project.find(root)
     n = 12

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,36 @@ _VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 class ProjectError(RuntimeError):
     pass
+
+
+def git_top(root: str | Path) -> Path | None:
+    """The top of the git work tree a project folder belongs to, or None when it belongs to none.
+
+    None outside git, and also when the repo around the folder ignores it (a project in an
+    ignored cache or scratch folder, or under a home folder kept in git with ``/*`` ignored):
+    that repo doesn't version the project, its other worktrees don't have it, and its commits
+    say nothing about it, so nothing git-based (claims dir, run provenance, tree bounds) should
+    come from it. A folder that is tracked, or untracked but not ignored (a new project not yet
+    committed), belongs to the repo.
+    """
+    root = Path(root).resolve()
+
+    def git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=10)
+
+    try:
+        r = git("rev-parse", "--show-toplevel")
+        if r.returncode != 0 or not r.stdout.strip():
+            return None
+        top = Path(r.stdout.strip()).resolve()
+        if top == root:
+            return top
+        # exit 0 = ignored; a tracked file is never reported ignored
+        if git("check-ignore", "-q", "--", CONFIG_NAME).returncode == 0:
+            return None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return top
 
 
 class Project:

@@ -1006,3 +1006,23 @@ def test_page_load_with_token_sets_an_httponly_cookie(start, env):
     assert _req(srv, "GET", "/api/meta", headers={"Cookie": pair.split("=")[0] + "=wrong"})[0] == 403
     assert _req(srv, "GET", "/api/meta", headers={"Cookie": "pawtrace_1=" + srv.token})[0] == 403  # another port's name
     assert _req(srv, "GET", "/?t=wrong")[0] == 403
+
+
+def test_tree_map_bound_ignores_a_repo_that_ignores_the_project(tmp_path):
+    # in a repo that ignores the project the bound is the project folder, not that repo
+    import subprocess
+
+    from pawtrace.project import Project
+    from pawtrace.webui.server import tree_entries
+
+    outer = tmp_path / "outer"
+    outer.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=outer, check=True)
+    (outer / ".gitignore").write_text("cache/\n")
+    (outer / "near").mkdir()
+    for rel in ("cache/proj", "sub/proj"):
+        d = outer / rel
+        (d / "code").mkdir(parents=True)
+        (d / "pawtrace.yaml").write_text("pawtrace: 1\nname: t\nprofile: minimal\ntree:\n  code: code\n  near: ../../near\n")
+    assert [n for n, _ in tree_entries(Project.find(outer / "cache/proj"))] == ["code"]
+    assert [n for n, _ in tree_entries(Project.find(outer / "sub/proj"))] == ["code", "near"]

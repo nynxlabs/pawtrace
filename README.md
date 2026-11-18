@@ -173,7 +173,8 @@ uv run pawtrace questions --write                                 # QUESTIONS.md
 - **panel-claims:** one lock file per panel, `{panel, by, task, claimed_at, expires_at}`.
   A second live claim is refused (exit 1); your own claim renews; claims expire (default
   4h) and the next claimer takes over. Files live in the git common dir
-  (`.git/pawtrace-claims/`), so every worktree of the repo sees the same claims; set
+  (`.git/pawtrace-claims/`), so every worktree of the repo sees the same claims; outside
+  git, or in a repo that ignores the project folder, they go in `.pawtrace-claims/`; set
   `paths.claims` to put them elsewhere. Writes are atomic (`os.link`), so two claimers
   can't both win.
 - **author-questions:** questions live in each paper's `ledger.yaml` under `questions:`
