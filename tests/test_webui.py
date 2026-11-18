@@ -484,6 +484,19 @@ def test_root_is_the_front_end_and_data_needs_the_token(start):
     assert _req(srv, "GET", "/static/app.js")[0] == 404
 
 
+def test_root_serves_the_committed_build_and_its_assets(start):
+    import re
+
+    srv = start()  # the default front end: the committed web/ build
+    status, _, body = _req(srv, "GET", "/")
+    assert status == 200 and b"placeholder.js" not in body
+    script = re.search(rb'src="(/assets/[^"]+\.js)"', body)
+    assert script, body[:400]
+    status, headers, js = _req(srv, "GET", script.group(1).decode())
+    assert status == 200 and headers["content-type"].startswith("text/javascript") and len(js) > 1000
+    assert _req(srv, "GET", "/THIRD-PARTY-NOTICES.txt")[0] == 200
+
+
 def test_front_end_folder_is_public_but_host_checked(start, env):
     import pawtrace.webui.server as ws
 

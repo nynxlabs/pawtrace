@@ -9,9 +9,10 @@ wants pawtrace's views over HTTP. It serves two things:
   a small state store. A front end's host adapter implements its file, settings and
   persistence hooks with these.
 
-The front end ([web/](../web/README.md), built on densk-core) is a static build served at `/`:
-`index.html`, `assets/`, `pdfjs/`. Those files load without the token, since they hold no project
-data; every data route needs it. Without a build the server shows a small placeholder page, and
+The front end ([web/](../web/README.md), built on densk-core) is a static build, committed in
+`src/pawtrace/webui/app/` and served at `/`: `index.html`, `assets/`, `pdfjs/` and its license
+notices. Those files load without the token, since they hold no project data; every data route
+needs it. Without a build the server shows a small placeholder page, and
 `--frontend DIR` serves another build. The desktop app (`desktop/`) shows `/` and adds the token
 to every request itself. Nothing here calls a model.
 

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#1c1c1c" />
+    <title>pawtrace</title>
+    <link rel="icon" href="/favicon.svg" />
+    <script>
+      // Before first paint: this device's class and the theme colours cached last time (densk-core's
+      // theme.ts writes pawtrace.theme), so a reload doesn't flash the built-in colours.
+      (function () {
+        var root = document.documentElement;
+        var ua = navigator.userAgent;
+        var mobile = /Android|iPhone|iPad/.test(ua);
+        var device = mobile ? (Math.min(screen.width, screen.height) >= 600 ? "tablet" : "phone") : /\b(?:Pawtrace|Nynx)DeviceClass\/laptop(?![a-z0-9-])/.test(ua) ? "laptop" : "desktop";
+        root.dataset.ptDevice = device;
+        root.dataset.nynxDevice = device; // densk-core's name (theme.ts keeps it current)
+        var touch = device === "tablet" || device === "phone";
+        var newTab = null;
+        try { newTab = localStorage.getItem("pawtrace.newTabButton"); } catch (e) {}
+        if (newTab === "always" || (newTab !== "never" && touch)) root.setAttribute("data-new-tab-button", "");
+        if (!touch) root.setAttribute("data-tab-numbers", "");
+        var dppx = String(window.devicePixelRatio || 1);
+        root.style.setProperty("--pt-dppx", dppx);
+        root.style.setProperty("--nynx-dppx", dppx); // densk-core's tab-bar line reads this one
+        // True black before first paint (densk-core theme.ts resolveOled): this device's own setting, else the
+        // theme's `oled` block from last time (a laptop without a value uses the desktop's), desktop and laptop only.
+        try {
+          var oledMode = localStorage.getItem("pawtrace.oled");
+          var oledBlock = JSON.parse(localStorage.getItem("pawtrace.oledBlock") || "null");
+          var oledOwn = !touch && !!oledBlock && typeof oledBlock === "object" &&
+            (typeof oledBlock[device] === "boolean" ? oledBlock[device] : device === "laptop" && oledBlock.desktop === true);
+          if (oledMode === "on" || (oledMode !== "off" && oledOwn)) {
+            root.dataset.theme = "oled";
+            document.querySelector('meta[name="theme-color"]').content = "#000000";
+          }
+        } catch (e) {}
+        try {
+          var cached = JSON.parse(localStorage.getItem("pawtrace.theme") || "null");
+          if (cached && cached.vars && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(cached.id)) {
+            for (var name in cached.vars) {
+              if (/^--theme-[a-z-]+$/.test(name) && /^#[0-9a-f]{6}$/i.test(cached.vars[name])) root.style.setProperty(name, cached.vars[name]);
+            }
+            root.dataset.palette = cached.id;
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-BXlZTAXp.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-COiEfhsA.js">
+    <link rel="modulepreload" crossorigin href="/assets/dist-CocjfJ8C.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DRWduOgd.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

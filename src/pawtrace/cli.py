@@ -833,7 +833,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--theme", help="theme file (docs/api.md § Theme file), served at /api/theme (default: $PAWTRACE_THEME, then $XDG_CONFIG_HOME/pawtrace/theme.json, then built in)")
     s.add_argument("--by", help="name recorded on digitizations started through the API")
     s.add_argument("--frame-ancestor", action="append", metavar="ORIGIN", help="an app origin allowed to frame the digitize page; repeatable; default: only this server")
-    s.add_argument("--frontend", help="folder with a built front end, served at /app/ (default: the bundled placeholder page)")
+    s.add_argument("--frontend", help="folder with a built front end, served at / (default: the committed build of web/)")
     s.add_argument("--config", help="user config file (default: $XDG_CONFIG_HOME/pawtrace/ui.yaml)")
     s.add_argument("--port", type=int, default=0, help="loopback port (default: a free one)")
     s.add_argument("--url-file", help="write the server URL (it holds the session token as ?t=) to this file, mode 0600; it's printed only to a terminal")

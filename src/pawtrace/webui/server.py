@@ -58,7 +58,7 @@ APP_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; chars
 
 
 def default_frontend() -> Path:
-    """The built front end (``web/``, built into ``app/``) when it's there, else the bundled placeholder."""
+    """The committed build of ``web/`` (``app/``) when it's there, else the bundled placeholder."""
     built = Path(__file__).with_name("app")
     return built if (built / "index.html").is_file() else Path(__file__).with_name("frontend")
 FILE_TYPES = {**nts.IMAGE_EXT, ".pdf": "application/pdf"}
@@ -109,7 +109,7 @@ class UiConfig:
     read_only: bool = False  # notes folders read-only too
     write_checkout: bool = False  # let the host interface write inside checkouts
     state_dir: Path | None = None  # default $XDG_STATE_HOME/pawtrace/ui
-    frontend: Path | None = None  # folder served at /app/ (default: the bundled placeholder)
+    frontend: Path | None = None  # folder served at / (default: the committed web/ build, else the placeholder)
     settings: Path | None = None  # the user config file, shown as pawtrace/settings.yaml (None: not shown)
     docs: bool = False  # pawtrace's own docs (README, docs/, playbooks/) in the pawtrace/ folder
     branches: bool = False  # with a tree: map, also show the project's other checkouts

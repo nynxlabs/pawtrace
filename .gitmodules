@@ -1,3 +1,6 @@
 [submodule "web/densk-core"]
 	path = web/densk-core
 	url = https://github.com/nynxlabs/densk-core.git
+	# Only for rebuilding the committed front end (web/README.md): clones skip it unless asked
+	# (git submodule update --init --checkout web/densk-core).
+	update = none

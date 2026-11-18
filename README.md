@@ -134,11 +134,12 @@ Routes, fields and guards: [docs/api.md](docs/api.md).
 
 The front end ([web/](web/README.md)) is built on densk-core, the shared UI core of densk: tabs,
 split panes, a sidebar over the notes folders and checkouts, PDF / markdown / code / image viewers
-and editors, and pawtrace's own pages (overview, papers, panels, reviews, figures, digitize). Review
-forms open in the editor, so marking one is editing it, with a conflict check against other
-editors. `pawtrace serve` serves the build at `/`. The desktop app ([desktop/](desktop/README.md))
-is a window over it: it starts `pawtrace serve` for a local project, or follows a server on
-another machine through a loopback tunnel, and keeps the session token in memory.
+and editors, and pawtrace's own pages (overview, papers, panels, reviews, figures, digitize).
+Review forms open in the editor, so marking one is editing it, with a conflict check against other
+editors. `pawtrace serve` serves its build at `/` (committed, so a plain clone needs no build
+step). The desktop app ([desktop/](desktop/README.md)) is a window over it: it starts `pawtrace
+serve` for a local project, or follows a server on another machine through a loopback tunnel, and
+keeps the session token in memory.
 
 ## Seed stats, preregistration, panel claims, author questions (optional modules)
 
