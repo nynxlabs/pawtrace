@@ -4,3 +4,8 @@ Copyright 2026 nynxlabs LLC
 The front-end build in src/pawtrace/webui/app/ includes densk-core (Copyright 2026 nynxlabs LLC,
 Apache-2.0) and third-party packages under their own licenses; their notices are in
 src/pawtrace/webui/app/THIRD-PARTY-NOTICES.txt.
+
+The pawtrace and nynxlabs names, logos and icons (the app icon, the pawtrace mark, the favicons,
+and any other logo or icon of ours in this repository) are not licensed under Apache-2.0: all
+rights reserved by nynxlabs LLC. Don't use them for your own projects or products; a fork or
+redistribution of pawtrace replaces them with its own.

@@ -215,3 +215,6 @@ uv run --group dev pytest -q
 ## License
 
 Apache License 2.0, Copyright (c) 2026 nynxlabs LLC — see `LICENSE` and `NOTICE`.
+
+The code is Apache-2.0; our names, logos and icons are not. They stay all rights reserved, so a fork
+uses its own (`NOTICE`).
